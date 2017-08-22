@@ -292,7 +292,8 @@ mmx <- max(c(summ_inla[,1],summ_tmb[,1],truth))
 ## plot
 print('making plots')
 require(grDevices)
-pdf(sprintf('mean_error_tmb_inla_%i_clusts_%iexpMths_wo_priors.pdf', n.clust, n.expMths), height=20,width=16)
+##pdf(sprintf('mean_error_tmb_inla_%i_clusts_%iexpMths_wo_priors.pdf', n.clust, n.expMths), height=20,width=16)
+pdf('plot.pdf', height=20,width=16)
 
 par(mfrow=c(4,3),
     mar = c(3, 3, 3, 9))
