@@ -23,6 +23,7 @@ Type objective_function<Type>::operator() ()
   DATA_VECTOR( Exp_i ); // exposure mths per cluster
   DATA_IVECTOR( s_i );  // observation specific id
   DATA_IVECTOR( t_i );  // # time periods
+  DATA_IVECTOR( w_i );  // weights for observations
   DATA_MATRIX( X_xp );  // covariate design matrix
 
   // SPDE objects
@@ -114,7 +115,7 @@ Type objective_function<Type>::operator() ()
     // mrprob(i) = linear_x(x_s(s_i(i))) + Epsilon_xt(x_s(s_i(i)),t_i(i)); // <DEPRECATED> to accont for datapts not at mesh locs
     mrprob(i) = linear_x(i) + proj_epsilon(i); // linear part plus projected sp-tm gp
     if( !isNA(c_i(i)) ){
-       PARALLEL_REGION jnll_comp[1] -= dbinom( c_i(i), Exp_i(i), invlogit(mrprob(i)), true );
+       PARALLEL_REGION jnll_comp[1] -= dbinom( c_i(i), Exp_i(i), invlogit(mrprob(i)), true )*w_i(i);
     // TEST   PARALLEL_REGION jnll_comp[1] -= dpois(  c_i(i), invlogit(mrprob(i)) * Exp_i(i), true);
     }
   }
