@@ -24,6 +24,8 @@ todo.md
 # temporary inla files
 inla.model*
 
+# emacs files
+*~
 # cluster logs
 clusterlogs/
 job*
