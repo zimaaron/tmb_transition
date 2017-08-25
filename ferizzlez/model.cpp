@@ -139,21 +139,23 @@ Type objective_function<Type>::operator() ()
   // Latent field/Random effect contribution to likelihood.
   // Possibilities of Kronecker include: S, ST, SZ, and STZ
   if (num_t == 1 & num_z == 1)  {
-    printf("SPACE  ONLY");
+    printf("SPACE  ONLY\n");
     jnll += GMRF(Q_ss)(epsilon_stz);
   } else if(num_t > 1 & num_z == 1) {
-    printf("SPACE-TIME");
+    printf("SPACE-TIME\n");
     jnll += SEPARABLE(AR1(trho),GMRF(Q_ss))(Epsilon_stz);
+    printf("Done with epsilon log-lik");
   } else if (num_t == 1 & num_z > 1) {
-    printf("SPACE-Z");
+    printf("SPACE-Z\n");
     jnll += SEPARABLE(AR1(zrho),GMRF(Q_ss))(Epsilon_stz);
   } else if (num_t > 1 & num_z > 1) {
-    printf("SPACE-TIME-Z");
+    printf("SPACE-TIME-Z\n");
     jnll += SEPARABLE(AR1(zrho),SEPARABLE(AR1(trho),GMRF(Q_ss)))(Epsilon_stz);
   }
 
   // Transform GMRFs and make vector form
   // TODO check indexing
+  printf("Converting Epsilon from matrix to vector");
   for(int s = 0; s < num_s; s++){
     for(int t = 0; t < num_t; t++){
       if(num_z == 0) {
