@@ -12,12 +12,12 @@ library(raster)
 ## need to set to same directory as the template file, also pull from git
 ## Clone the git directory to your H drive and this should work for anyone
 dir <- paste0("/homes/",Sys.info()['user'],"/tmb_transition")
-system(paste0('cd ',dir,'\ngit pull origin aoz_dev'))
-setwd(paste0(dir,"/practice/5_spde"))
+system(paste0('cd ',dir,'\ngit pull origin develop'))
+setwd(paste0(dir,"/ferizzlez"))
 ## source("./inla_tmb_compare.R")
 
 ## source some functions made for this bit
-source('utils.R')
+source('../utils.R')
 
 if( grepl('geos',Sys.info()['nodename'])) INLA:::inla.dynload.workaround()
 ###############################################################
@@ -82,64 +82,40 @@ A.proj <- inla.spde.make.A(mesh  = mesh_s,
 X_xp = as.matrix(cbind(1, dt[,names(simobj$cov.raster.list[[1]]),with=FALSE]))
 
 
-Data = list(n_i=nrow(dt),                   ## Total number of observations
-            n_x=mesh_s$n,                   ## Number of vertices in SPDE mesh
-            n_t=nperiod,                    ## Number of periods
-            n_p=ncol(X_xp),                 ## Number of columns in covariate matrix X
-##            x_s=mesh_s$idx$loc-1,           ## Association of each cluster with a given vertex in SPDE mesh
-            c_i=dt$deaths,                  ## Number of observed deaths in the cluster (N+ in binomial likelihood)
-            Exp_i=dt$exposures,             ## Number of observed exposures in the cluster (N in binomial likelihood)
-            s_i=dt$id-1,                    ## no site specific effect in my model (different sampling locations in time)
+Data = list(num_i=nrow(dt),                 ## Total number of observations
+            num_s=mesh_s$n,                 ## Number of vertices in SPDE mesh
+            num_t=nperiod,                  ## Number of periods
+            num_z=1,
+            y_i=dt$deaths,                  ## Number of observed deaths in the cluster (N+ in binomial likelihood)
+            n_i=dt$exposures,               ## Number of observed exposures in the cluster (N in binomial likelihood)
             t_i=dt$period-1,                ## Sample period ( starting at zero )
-            X_xp=X_xp,                      ## Covariate design matrix
-            G0=spde$param.inla$M0,          ## SPDE sparse matrix
-            G1=spde$param.inla$M1,          ## SPDE sparse matrix
-            G2=spde$param.inla$M2,          ## SPDE sparse matrix
+            w_i=rep(1,nrow(dt)),
+            X_ij=X_xp,                      ## Covariate design matrix
+            M0=spde$param.inla$M0,          ## SPDE sparse matrix
+            M1=spde$param.inla$M1,          ## SPDE sparse matrix
+            M2=spde$param.inla$M2,          ## SPDE sparse matrix
             Aproj = A.proj,                 ## mesh to prediction point projection matrix
             options = c(1))                 ## option1==1 use priors
-            #spde=(spde$param.inla)[c('M1','M2','M3')])
 
-## Data$options = 0 ## I had this in my code, Roy did not when I merged on 8/22/2017
 
 ## staring values for parameters
-Parameters = list(alpha   =  rep(0,ncol(X_xp)),                     ## FE parameters alphas
-                  log_tau_E=1.0,                                    ## log inverse of tau  (Epsilon)
-                  log_kappa=0.0,	                            ## Matern Range parameter
-                  rho=0.5,
-                  epsilon=matrix(1,ncol=nperiod,nrow=mesh_s$n))     ## GP locations
+Parameters = list(alpha_j   =  rep(0,ncol(X_xp)),                 ## FE parameters alphas
+                  logtau=1.0,                                     ## log inverse of tau  (Epsilon)
+                  logkappa=0.0,	                                  ## Matern Range parameter
+                  trho=0.5,
+                  zrho=0.5,
+                  Epsilon_stz=array(1, c(mesh_s$n, nperiod)))     ## GP locations
 
 ##########################################################
 ### FIT MODEL
 ## Make object
 ## Compile
-templ <- "basic_spde" # _aoz" #spde2
+templ <- "model"
 TMB::compile(paste0(templ,".cpp"))
 dyn.load( dynlib(templ) )
 
-#library(parallel)
-#openmp(0) # any nyumber other than 1 does not converge or speed up.
-# map to kill certain variables
 
-# a quick run to get starting values of fixed effects
-not_phase1 = list(log_tau_E=as.factor(NA),log_kappa=as.factor(NA),rho=as.factor(NA),epsilon=factor(rep(NA,mesh_s$n*nperiod)))
-obj <- MakeADFun(data=Data, parameters=Parameters, map=not_phase1, DLL=templ)
-x   <- do.call('optim',obj)
-Parameters$alpha <- x$par
-
-#bounds
-lower       =    c(rep(-20,dim(X_xp)[2]),rep(-10,2),-0.999)
-upper       =    c(rep(20 ,dim(X_xp)[2]),rep( 10,2), 0.999)
-
-# cancel out rho if needed
-mapout <- list()
-if(nperiod == 1){
-  lower  <- lower[-1]
-  upper  <- upper[-1]
-  mapout <- list(rho=factor(NA))
-}
-# make object
-#openmp(2)
-obj <- MakeADFun(data=Data, parameters=Parameters, map=mapout, random="epsilon", hessian=TRUE, DLL=templ)
+obj <- MakeADFun(data=Data, parameters=Parameters, random="epsilon", hessian=TRUE, DLL=templ)
 
 ## Run optimizer
 ptm <- proc.time()[3]
@@ -151,22 +127,6 @@ opt0 <- do.call("nlminb",list(start       =    obj$par,
                               control     =    list(eval.max=1e4, iter.max=1e4, trace=1)))
 tmb_fit_time <- proc.time()[3] - ptm
 
-## opt0[["final_gradient"]] = obj$gr( opt0$par )
-## head(summary(SD0))
-
-
-# try benchmarking
-if(T==F){
-  ben <- benchmark(obj, n=1, cores=seq(1,10,by=2), expr=expression(do.call("nlminb",list(start       =    obj$par,
-                          objective   =    obj$fn,
-                          gradient    =    obj$gr,
-                          lower       =    lower,
-                          upper       =    upper,
-                          control     =    list(eval.max=1e4, iter.max=1e4, trace=0)))))
-  png( file="Benchmark.png", width=6, height=6, res=200, units="in")
-  plot(ben)
-  dev.off()
-}
 
 # Get standard errors
 ## Report0 = obj$report()
@@ -355,6 +315,7 @@ summ_tmb <- cbind(median=(apply(pred_tmp,1,median)),sd=(apply(pred_tmp,1,sd)))
 ## get error and SD
 truth <- qlogis(as.vector(simobj$r.true.mr))
 
+
 e_tmb  <- summ_tmb[,1]-truth
 e_inla <- summ_inla[,1]-truth
 
@@ -382,7 +343,7 @@ mmx <- max(c(summ_inla[,1],summ_tmb[,1],truth))
 print('making plots')
 require(grDevices)
 ##pdf(sprintf('mean_error_tmb_inla_%i_clusts_%iexpMths_wo_priors.pdf', n.clust, n.expMths), height=20,width=16)
-pdf('plot.pdf', height=20,width=16)
+pdf("plot.pdf", height=20,width=16)
 
 par(mfrow=c(4,3),
     mar = c(3, 3, 3, 9))
