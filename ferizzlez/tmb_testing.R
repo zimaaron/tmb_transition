@@ -101,9 +101,9 @@ Data = list(num_i=nrow(dt),                 ## Total number of observations
 ## staring values for parameters
 Parameters = list(alpha_j   =  rep(0,ncol(X_xp)),                 ## FE parameters alphas
                   logtau=1.0,                                     ## log inverse of tau  (Epsilon)
-                  logkappa=0.0,	                                  ## Matern Range parameter
-                  trho=0.5,
-                  zrho=0.5,
+                  logkappa= -.2,	                                  ## Matern Range parameter
+                  trho=0.9,
+                 # zrho=0.9,
                   Epsilon_stz=array(1, c(mesh_s$n, nperiod)))     ## GP locations
 
 ##########################################################
@@ -115,16 +115,20 @@ TMB::compile(paste0(templ,".cpp"))
 dyn.load( dynlib(templ) )
 
 
-obj <- MakeADFun(data=Data, parameters=Parameters, random="epsilon_stz", hessian=TRUE, DLL=templ)
+obj <- MakeADFun(data=Data, parameters=Parameters, random="Epsilon_stz", hessian=TRUE, DLL=templ)
 
 ## Run optimizer
+lower <- c(-10, -10, -10, -10, -10, -10, -.9999, -.9999)
+upper <- c(10, 10, 10, 10, 10, 10, .9999, .9999)
+
 ptm <- proc.time()[3]
 opt0 <- do.call("nlminb",list(start       =    obj$par,
                               objective   =    obj$fn,
                               gradient    =    obj$gr,
                               lower       =    lower,
                               upper       =    upper,
-                              control     =    list(eval.max=1e4, iter.max=1e4, trace=1)))
+                              control     =    list(eval.max=1e6, iter.max=1e6, trace=1,
+                                                    abs.tol = 1e-30, rel.tol = 1e-15)))
 tmb_fit_time <- proc.time()[3] - ptm
 
 
