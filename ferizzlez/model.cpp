@@ -158,7 +158,7 @@ Type objective_function<Type>::operator() ()
   printf("Converting Epsilon from matrix to vector");
   for(int s = 0; s < num_s; s++){
     for(int t = 0; t < num_t; t++){
-      if(num_z == 0) {
+      if(num_z == 1) {
 	epsilon_stz[(s + num_s * t)] = Epsilon_stz(s,t); // put in a vector
       } else{
 	for(int z = 0; z < num_z; z++){
