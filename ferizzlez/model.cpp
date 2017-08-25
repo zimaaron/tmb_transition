@@ -106,6 +106,7 @@ Type objective_function<Type>::operator() ()
   printf("Q_ss dimensions: %d\n", Q_ss.size());
 
 
+
   // Make transformations of some of our parameters
   Type range     = sqrt(8.0) / exp(logkappa);
   Type sigma     = 1.0 / sqrt(4.0 * 3.14159265359 * exp(2.0 * logtau) * exp(2.0 * logkappa));
@@ -155,8 +156,12 @@ Type objective_function<Type>::operator() ()
   // TODO check indexing
   for(int s = 0; s < num_s; s++){
     for(int t = 0; t < num_t; t++){
-      for(int z = 0; z < num_z; z++){
-        epsilon_stz[(s + num_s * t + num_t * z)] = Epsilon_stz(s,t,z); // put in a vector
+      if(num_z == 0) {
+	epsilon_stz[(s + num_s * t)] = Epsilon_stz(s,t); // put in a vector
+      } else{
+	for(int z = 0; z < num_z; z++){
+	  epsilon_stz[(s + num_s * t + num_t * z)] = Epsilon_stz(s,t,z); // put in a vector
+	}
       }
     }
   }

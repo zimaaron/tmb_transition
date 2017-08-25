@@ -115,7 +115,7 @@ TMB::compile(paste0(templ,".cpp"))
 dyn.load( dynlib(templ) )
 
 
-obj <- MakeADFun(data=Data, parameters=Parameters, random="epsilon", hessian=TRUE, DLL=templ)
+obj <- MakeADFun(data=Data, parameters=Parameters, random="epsilon_stz", hessian=TRUE, DLL=templ)
 
 ## Run optimizer
 ptm <- proc.time()[3]
