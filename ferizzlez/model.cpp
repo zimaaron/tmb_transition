@@ -102,7 +102,8 @@ Type objective_function<Type>::operator() ()
 
 
   // Make spatial precision matrix
-  SparseMatrix<Type> Q_ss = spde_Q(logkappa, logtau, M0, M1, M2);
+  Eigen::SparseMatrix<Type> Q_ss = spde_Q(logkappa, logtau, M0, M1, M2);
+  printf("Q_ss dimensions: %d\n", Q_ss.size());
 
 
   // Make transformations of some of our parameters
