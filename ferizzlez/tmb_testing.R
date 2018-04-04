@@ -25,7 +25,7 @@ if( grepl('geos',Sys.info()['nodename'])) INLA:::inla.dynload.workaround()
 ## Simulate a surface, this returns a list of useful objects like samples and truth
 
 simobj <- mortsim(nu         = 2               ,  ##  Matern smoothness parameter (alpha in INLA speak)
-                  betas      = c(-3,-1,1,1)    ,  ##  Intercept coef and covariate coef For Linear predictors
+                  betas      = c(-3,.2,.3,.5)    ,  ##  Intercept coef and covariate coef For Linear predictors
                   scale      = .1              ,  ##  Matern scale eparameter
                   Sigma2     = (.25) ^ 2       ,  ##  Variance (Nugget)
                   rho        = 0.9             ,  ##  AR1 term
@@ -226,36 +226,128 @@ tmb_totalpredict_time <- proc.time()[3] - ptm
 ## eras_tmb <- rasterFromXYZT(data.table(pcoords,p=e,t=rep(1:nperiod,each=len)),"p","t")
 
 ####################################################################
-## fit using inla
-A <- inla.spde.make.A(
-  mesh = mesh_s,
-  loc = as.matrix(dt[, c('x', 'y'),with=F]),
-  group = dt$period
-)
-space = inla.spde.make.index("space",
-                             n.spde = spde$n.spde,
-                             n.group = nperiod)
 
-design_matrix <- data.frame(int = 1,dt[,simobj$fe.names,with=F])
-stack.obs=inla.stack(
-  tag='est',
-  data=list(died=dt$deaths), ## response
-  A=list(A,1), ## proj matrix, not sure what the 1 is for
-  effects=list(
-    space,
-    design_matrix)
+sum.to.1 <- FALSE
+
+if(sum.to.1){ ## sum to one
+
+  ## fit using inla with sum-to-one
+  A <- inla.spde.make.A(
+    mesh = mesh_s,
+    loc = as.matrix(dt[, c('x', 'y'),with=F]),
+    group = dt$period
+  )
+  space = inla.spde.make.index("space",
+                               n.spde = spde$n.spde,
+                               n.group = nperiod)
+
+  design_matrix <- data.frame(int = 1,dt[,simobj$fe.names,with=F])
+  A.covar <- cbind(dt[, X1], dt[, X2], dt[, X3])
+  ## build data stack for the response part of the model
+  stack.obs=inla.stack(
+    tag='est',
+    data=list(died=dt$deaths), ## response
+    A=list(A, 1, A.covar), ## A for space, 1 for design_matrix, design_matrix for covariate constraint
+    effects=list(space,
+                 design_matrix,
+                 list(covar = 1:ncol(A.covar))) 
+  )
+  
+  formula <-
+  formula(paste0('died ~ -1+int+',
+                 ## (paste(simobj$fe.names,collapse = ' + ')),
+                 ' + f(space,
+                   model = spde,
+                   group = space.group,
+                   control.group = list(model = \'ar1\'))',
+                 ' + f(covar, model = \'iid\', extraconstr = list(A = matrix(1, 1, 3), e = 1),
+      hyper=list(theta=list(initial=log(inla.set.control.fixed.default()$prec),
+      fixed=TRUE)))'
+      ))
+
+  ptm <- proc.time()[3]
+  res_fit <- inla(formula,
+                  data = inla.stack.data(stack.obs, field.spde = space),
+                  control.predictor = list(A = inla.stack.A(stack.obs),
+                                           link = 1,
+                                           compute = FALSE),
+                  control.fixed = list(expand.factor.strategy = 'inla'),
+                  control.inla = list(int.strategy = 'eb', h = 1e-3, tolerance = 1e-6),
+                  control.compute=list(config = TRUE),
+                  family = 'binomial',
+                  num.threads = 10,
+                  Ntrials = dt$exposures,
+                  verbose = TRUE,
+                  keep = TRUE)
+  inla_fit_time <- proc.time()[3] - ptm
+
+  
+  formula.pos <-
+  formula(paste0('died ~ -1+int+',
+                 ## (paste(simobj$fe.names,collapse = ' + ')),
+                 ' + f(space,
+                   model = spde,
+                   group = space.group,
+                   control.group = list(model = \'ar1\'))',
+                 ' + f(covar, model = \'clinear\', range=c(0, 1), extraconstr = list(A = matrix(1, 1, 3), e = 1),
+      hyper=list(theta=list(initial=log(inla.set.control.fixed.default()$prec),
+      fixed=TRUE)))'
+      ))
+
+  ptm <- proc.time()[3]
+  res_fit.pos <- inla(formula.pos,
+                  data = inla.stack.data(stack.obs, field.spde = space),
+                  control.predictor = list(A = inla.stack.A(stack.obs),
+                                           link = 1,
+                                           compute = FALSE),
+                  control.fixed = list(expand.factor.strategy = 'inla'),
+                  control.inla = list(int.strategy = 'eb', h = 1e-3, tolerance = 1e-6),
+                  control.compute=list(config = TRUE),
+                  family = 'binomial',
+                  num.threads = 10,
+                  Ntrials = dt$exposures,
+                  verbose = TRUE,
+                  keep = TRUE)
+  inla_fit_time.pos <- proc.time()[3] - ptm
+
+}else{ ## unconstrained (i.e. not sum-to-1)
+
+
+  ## fit using inla with sum-to-one
+  A <- inla.spde.make.A(
+    mesh = mesh_s,
+    loc = as.matrix(dt[, c('x', 'y'),with=F]),
+    group = dt$period
+  )
+  space = inla.spde.make.index("space",
+                               n.spde = spde$n.spde,
+                               n.group = nperiod)
+
+  design_matrix <- data.frame(int = 1,dt[,simobj$fe.names,with=F])
+  ## build data stack for the response part of the model
+  stack.obs=inla.stack(
+    tag='est',
+    data=list(died=dt$deaths), ## response
+    A=list(A, 1), ## A for space, 1 for design_matrix, design_matrix for covariate constraint
+    effects=list(space,
+                 design_matrix)
 )
+
 formula <-
 formula(paste0('died ~ -1+int+',
-(paste(simobj$fe.names,collapse = ' + ')),
+ (paste(simobj$fe.names,collapse = ' + ')),
 ' + f(space,
                    model = spde,
                    group = space.group,
                    control.group = list(model = \'ar1\'))'
+#' + f(covar, model = \'iid\', extraconstr = list(A = matrix(1, 1, 3), e = 1),
+#      hyper=list(theta=list(initial=log(inla.set.control.fixed.default()$prec),
+#      fixed=TRUE)))'
 ))
+
 ptm <- proc.time()[3]
 res_fit <- inla(formula,
-                data = inla.stack.data(stack.obs),
+                data = inla.stack.data(stack.obs, field.spde = space),
                 control.predictor = list(A = inla.stack.A(stack.obs),
                                          link = 1,
                                          compute = FALSE),
@@ -267,7 +359,9 @@ res_fit <- inla(formula,
                 Ntrials = dt$exposures,
                 verbose = TRUE,
                 keep = TRUE)
-inla_fit_time <- proc.time()[3] - ptm
+  inla_fit_time <- proc.time()[3] - ptm
+  
+}
 
 ptm <- proc.time()[3]
 draws <- inla.posterior.sample(ndraws, res_fit)

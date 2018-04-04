@@ -1,4 +1,3 @@
-
 rm(list=ls())
 options(scipen=999)
 .libPaths('/home/j/temp/geospatial/packages')
