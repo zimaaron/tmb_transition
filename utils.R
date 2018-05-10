@@ -17,7 +17,7 @@ makeRandomCovariate <- function(extent = c(0,1,0,1),
                                 mean   = 0,
                                 sd=.1,
                                 l=51,
-                                scale=1,
+                                scale=.1,
                                 ext=T){
 
 
