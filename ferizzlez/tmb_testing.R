@@ -1,7 +1,6 @@
 rm(list=ls())
 gc()
 options(scipen=999)
-.libPaths("/home/j/temp/geospatial/geos_packages")
 
 library(INLA)
 library(TMB)
@@ -19,7 +18,6 @@ setwd(paste0(dir,"/ferizzlez"))
 ## source some functions made for this bit
 source('../utils.R')
 
-if( grepl('geos',Sys.info()['nodename'])) INLA:::inla.dynload.workaround()
 ###############################################################
 ## SIMULATE AND SET UP THE DATA
 ## Simulate a surface, this returns a list of useful objects like samples and truth
