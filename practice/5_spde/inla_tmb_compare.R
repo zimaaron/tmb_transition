@@ -1,7 +1,6 @@
 rm(list=ls())
 gc()
 options(scipen=999)
-.libPaths("/home/j/temp/geospatial/geos_packages")
 
 library(INLA)
 library(TMB)
@@ -17,9 +16,8 @@ setwd(paste0(dir,"/practice/5_spde"))
 ## source("./inla_tmb_compare.R")
 
 ## source some functions made for this bit
-source('utils.R')
+source('../../utils.R')
 
-if( grepl('geos',Sys.info()['nodename'])) INLA:::inla.dynload.workaround()
 ###############################################################
 ## SIMULATE AND SET UP THE DATA
 ## Simulate a surface, this returns a list of useful objects like samples and truth
@@ -30,13 +28,13 @@ simobj <- mortsim(nu         = 2               ,  ##  Matern smoothness paramete
                   rho        = 0.9             ,  ##  AR1 term
                   l          = 50              ,  ##  Matrix Length
                   n_clusters = 500             ,  ##  number of clusters sampled ]
-                  n_periods  = 4               ,  ##  number of periods (1 = no spacetime)
+                  n_periods  = 1               ,  ##  number of periods (1 = no spacetime)
                   mean.exposure.months = 100   ,  ##  mean exposure months per cluster
                   extent = c(0,1,0,1)          ,  ##  xmin,xmax,ymin,ymax
                   ncovariates = 3              ,  ##  how many covariates to include?
                   seed   = NULL                ,
                   returnall=TRUE               ,
-                  tvc     = TRUE) # time varying covariates. either way returns an nperiod length list of covariate rasters (if no tvc, they are dups)
+                  tvc     = FALSE) # time varying covariates. either way returns an nperiod length list of covariate rasters (if no tvc, they are dups)
 
 
 ## get samples from which to fit
@@ -145,8 +143,7 @@ opt0 <- do.call("nlminb",list(start       =    obj$par,
                               objective   =    obj$fn,
                               gradient    =    obj$gr,
                               lower       =    lower,
-                              upper       =    upper,
-                              control     =    list(eval.max=1e4, iter.max=1e4, trace=1)))
+                              upper       =    upper))
 tmb_fit_time <- proc.time()[3] - ptm
 
 ## opt0[["final_gradient"]] = obj$gr( opt0$par )
@@ -155,12 +152,13 @@ tmb_fit_time <- proc.time()[3] - ptm
 
 # try benchmarking
 if(T==F){
-  ben <- benchmark(obj, n=1, cores=seq(1,10,by=2), expr=expression(do.call("nlminb",list(start       =    obj$par,
-                          objective   =    obj$fn,
-                          gradient    =    obj$gr,
-                          lower       =    lower,
-                          upper       =    upper,
-                          control     =    list(eval.max=1e4, iter.max=1e4, trace=0)))))
+  ben <- benchmark(obj, n=1, cores=seq(1,10,by=2),
+                   expr=expression(do.call("nlminb",list(start       =    obj$par,
+                                                         objective   =    obj$fn,
+                                                         gradient    =    obj$gr,
+                                                         lower       =    lower,
+                                                         upper       =    upper,
+                                                         control     =    list(eval.max=1e4, iter.max=1e4, trace=0)))))
   png( file="Benchmark.png", width=6, height=6, res=200, units="in")
   plot(ben)
   dev.off()
@@ -251,7 +249,7 @@ len = nrow(pred_tmp)/nperiod
 
 tmb_totalpredict_time <- proc.time()[3] - ptm
 
-## eras_tmb <- rasterFromXYZT(data.table(pcoords,p=e,t=rep(1:nperiod,each=len)),"p","t")
+## eras_tmb <- rasterFromXYZT(data.table(pcoords,p=e,t=rep(1:nperiodw,each=len)),"p","t")
 
 ####################################################################
 ## fit using inla
@@ -390,9 +388,10 @@ truthr<- simobj$r.true.mr
 values(truthr) <- truth
 
 ## 1
-plot(truthr[[1]],main='TRUTH',zlim=c(mmn,mmx))
+plot(truthr[[1]],main='TRUTH',zlim=c(mmn,mmx),
+     axis.args = list(at = seq(mmn, mmx, length = 5),
+                      labels = round(seq(smn, smx, length = 5), 4)))
 points(simobj$d$x[simobj$d$period==1],simobj$d$y[simobj$d$period==1])
-
 ## 2
 plot(as.vector(sd_tmb_r[[1]]),as.vector(sd_inla_r[[1]]), col = rainbow(11)[cut(pcoords[, 1], breaks = 10)], main = "Color by X")
 legend("bottomright", legend = unique(cut(pcoords[, 1], breaks = 10)), col = rainbow(11), pch = 16)
@@ -402,34 +401,61 @@ plot(as.vector(sd_tmb_r[[1]]),as.vector(sd_inla_r[[1]]), col = rainbow(11)[cut(p
 legend("bottomright", legend = unique(cut(pcoords[, 2], breaks = 10)), col = rainbow(11), pch = 16)
 abline(a = 0, b = 1)
 ## 4
-plot(m_tmb_r[[1]],main='MEDIAN TMB',zlim=c(mmn,mmx))
+plot(m_tmb_r[[1]],main='MEDIAN TMB',zlim=c(mmn,mmx),
+     axis.args = list(at = seq(mmn, mmx, length = 5),
+                      labels = round(seq(smn, smx, length = 5), 4)))
 ## 5
-plot(m_inla_r[[1]],main='MEDIAN INLA',zlim=c(mmn,mmx))
+plot(m_inla_r[[1]],main='MEDIAN INLA',zlim=c(mmn,mmx),
+     axis.args = list(at = seq(mmn, mmx, length = 5),
+                      labels = round(seq(smn, smx, length = 5), 4)))
 ## 6
+sum.title <- round(summary(m_diff_r[[1]]), 4)
+sum.title <- paste0('1stQ: ', sum.title[2], ', Med: ', sum.title[3], ', 3rdQ: ', sum.title[4])
+cls <- c(colorRampPalette(c("blue", "white"))(15), colorRampPalette(c("white", "red"))(15))[-15]
+r <- range(values(m_diff_r[[1]]))
 cls <- c(colorRampPalette(c("blue", "white"))(15), colorRampPalette(c("white", "red"))(15))[-15]
 brks <- c(seq(min(values(m_diff_r)), 0, length = 15), 0, seq(0, max(values(m_diff_r)),length = 15))[-c(15, 16)]
-plot(m_diff_r[[1]],main='MEDIAN DIFFERENCE', col = cls, breaks = brks)
+plot(m_diff_r[[1]],main=paste('MEDIAN DIFFERENCE (tmb - inla)', sum.title, sep = '\n'), col = cls, breaks = brks,
+     axis.args = list(at = seq(r[1], r[2], length = 5),
+                      labels = round(seq(r[1], r[2], length = 5), 4)))     
 ## 7
+sum.title <- round(summary(e_tmb_r[[1]]), 4)
+sum.title <- paste0('1stQ: ', sum.title[2], ', Med: ', sum.title[3], ', 3rdQ: ', sum.title[4])
 error.values <- range(c(values(e_tmb_r), values(e_inla_r)))
 cls <- c(colorRampPalette(c("blue", "white"))(15), colorRampPalette(c("white", "red"))(15))[-15]
 brks <- c(seq(min(error.values), 0, length = 15), 0, seq(0, max(error.values),length = 15))[-c(15, 16)]
-plot(e_tmb_r[[1]],main='TMB ERROR',zlim=c(emn,emx), col = cls, breaks = brks)
+plot(e_tmb_r[[1]],main=paste('TMB ERROR (est-truth)', sum.title, sep = '\n'), zlim=c(min(error.values),max(error.values)), col = cls, breaks = brks,
+     axis.args = list(at = seq(min(error.values),max(error.values), length = 5),
+                      labels = round(seq(min(error.values),max(error.values), length = 5), 4)))
 ## 8
+sum.title <- round(summary(e_inla_r[[1]]), 4)
+sum.title <- paste0('1stQ: ', sum.title[2], ', Med: ', sum.title[3], ', 3rdQ: ', sum.title[4])
 cls <- c(colorRampPalette(c("blue", "white"))(15), colorRampPalette(c("white", "red"))(15))[-15]
 brks <- c(seq(min(error.values), 0, length = 15), 0, seq(0, max(error.values),length = 15))[-c(15, 16)]
-plot(e_inla_r[[1]],main='INLA ERROR',zlim=c(emn,emx), col = cls, breaks = brks)
+plot(e_inla_r[[1]],main=paste('INLA ERROR (est - truth)', sum.title, sep = '\n'), zlim=c(min(error.values),max(error.values)), col = cls, breaks = brks,
+     axis.args = list(at = seq(min(error.values),max(error.values), length = 5),
+                      labels = round(seq(min(error.values),max(error.values), length = 5), 4)))
 ## 9
-plot(x = e_inla_r[[1]], y = e_tmb_r[[1]], xlab = "inla error", ylab="tmb error");abline(a = 0, b= 1)
+plot(x = e_inla_r[[1]], y = e_tmb_r[[1]], xlab = "inla error", ylab="tmb error", main = "Error Scatter");abline(a = 0, b= 1)
 ## 10
-plot(sd_tmb_r[[1]],main='TMB SD',zlim=c(smn,smx))
+plot(sd_tmb_r[[1]],main='TMB SD',zlim=c(smn,smx),
+     axis.args = list(at = seq(smn, smx, length = 5),
+                      labels = round(seq(smn, smx, length = 5), 4)))
 points(simobj$d$x[simobj$d$period==1],simobj$d$y[simobj$d$period==1])
 ## 11
-plot(sd_inla_r[[1]],main='INLA SD',zlim=c(smn,smx))
+plot(sd_inla_r[[1]],main='INLA SD',zlim=c(smn,smx),
+     axis.args = list(at = seq(smn, smx, length = 5),
+                      labels = round(seq(smn, smx, length = 5), 4)))
 points(simobj$d$x[simobj$d$period==1],simobj$d$y[simobj$d$period==1])
 ## 12
+r <- range(values(sd_diff_r[[1]]))
+sum.title <- round(summary(sd_diff_r[[1]]), 4)
+sum.title <- paste0('1stQ: ', sum.title[2], ', Med: ', sum.title[3], ', 3rdQ: ', sum.title[4])
 cls <- c(colorRampPalette(c("blue", "white"))(15), colorRampPalette(c("white", "red"))(15))[-15]
 brks <- c(seq(min(values(sd_diff_r)), 0, length = 15), 0, seq(0, max(values(sd_diff_r)),length = 15))[-c(15, 16)]
-plot(sd_diff_r[[1]], main='SD DIFFERENCE', col = cls, breaks = brks)
+plot(sd_diff_r[[1]], main=paste('SD DIFFERENCE (tmb - inla)', sum.title, sep = '\n'), col = cls, breaks = brks,
+     axis.args = list(at = seq(r[1], r[2], length = 5),
+                      labels = round(seq(r[1], r[2], length = 5), 4)))  
 points(simobj$d$x[simobj$d$period==1],simobj$d$y[simobj$d$period==1])
-
 dev.off()
+
