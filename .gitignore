@@ -30,3 +30,9 @@ job*
 
 # screen logs
 *.0
+
+# apple file system things
+.DS*
+
+# emacs save files
+*~

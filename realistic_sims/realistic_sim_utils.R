@@ -249,7 +249,7 @@ sim.realistic.data <- function(reg,
   true_p_logit<- numeric(nrow(sim.dat))
   for(yy in unique(year_list)){
     true_p_logit[which(sim.dat[, year] == yy)] <- raster::extract(x = true.rast, y = sim.dat[year == yy, .(long, lat)],
-                                                                  layer = which(year_list %in% yy),)
+                                                                  layer = which(year_list %in% yy))
   }
   sim.dat[, p_true := inv.logit(true_p_logit)]
 

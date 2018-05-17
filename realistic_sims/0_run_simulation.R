@@ -3,45 +3,13 @@
 ## written by AOZ
 ## last editted 5/14/18
 
-
+options(error = recover)
 
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
-logging_note <- 'This is a fresh test from scratch.'
+logging_note <- 'This is a fresh test after turning sims into a function.'
 ################################################################################
-
-## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-##############################
-## setup tunable parameters ##
-##############################
-
-## TODO, make this one big function with these params as args
-
-## pick a country (or region) using iso3 codes (or region names)
-reg       <- 'NGA'
-year_list <- seq(2000, 2015, by = 5)
-
-## fixed effects betas
-betas <- c(.5, -1, 1, -.5)
-
-## covariates
-## load some covariates (need matching name and measure)
-covs <- data.table(name = c('access2', 'distrivers', 'evi'   , 'mapincidence'),
-                   meas = c('mean'   , 'mean'      , 'median', 'mean'))
-
-## gp and ar1 param
-sp.kappa <- 1
-sp.var   <- .5
-sp.alpha <- 2
-t.rho    <- .8
-
-## number of clusters, mean and sd of cluster size
-n.clust <- 100 ## clusters PER TIME slice
-m.clust <- 35  ## mean number of obs per cluster (poisson)
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -78,8 +46,41 @@ close(fileConn)
 ## Now we can switch to the TMB repo
 setwd(tmb_repo)
 if(pull_tmb_git) system(sprintf('cd %s\ngit pull %s %s', core_repo, remote, branch))
+source('./realistic_sims/realistic_sim_utils.R')
 
-## setup is now done. time to load covariates
+## setup is now done. setup some parameters for this simulation
+
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+##############################
+## setup tunable parameters ##
+##############################
+
+## TODO, make this one big function with these params as args
+
+## pick a country (or region) using iso3 codes (or region names)
+reg       <- 'NGA'
+year_list <- seq(2000, 2015, by = 5)
+
+## fixed effects betas
+betas <- c(.5, -1, 1, -.5)
+
+## covariates
+## load some covariates (need matching name and measure)
+covs <- data.table(name = c('access2', 'distrivers', 'evi'   , 'mapincidence'),
+                   meas = c('mean'   , 'mean'      , 'median', 'mean'))
+
+## gp and ar1 param
+sp.kappa <- 1.0
+sp.var   <- 0.5
+sp.alpha <- 2.0
+t.rho    <- 0.8
+
+## number of clusters, mean and sd of cluster size
+n.clust <- 100 ## clusters PER TIME slice
+m.clust <- 35  ## mean number of obs per cluster (poisson)
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
