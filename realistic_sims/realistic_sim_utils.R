@@ -70,10 +70,11 @@ sim.realistic.data <- function(reg,
                                simple_polygon, 
                                out.dir){
 
-########################################
-## load and prepare covariate rasters ##
-########################################  
-  
+  ########################################
+  ## load and prepare covariate rasters ##
+  ########################################  
+
+  message('\n\nLOADING COVS\n\n')
   cov_layers <- load_and_crop_covariates_annual(covs            = covs[, name],
                                                 measures        = covs[, meas],
                                                 simple_polygon  = simple_polygon,
@@ -131,7 +132,8 @@ sim.realistic.data <- function(reg,
   ############################
   ## simulate space-time gp ##
   ############################
-
+  
+  message('\n\nSIMULATE GP\n\n')
   ## to simulate, we need lat-lon locs for the entire raster
 
   ## convert simple raster of our region to spatialpolygonsDF
@@ -234,6 +236,8 @@ sim.realistic.data <- function(reg,
   ## simulate data from true surface ##
   #####################################
 
+  message('\n\nSIMULATE DATA\n\n')
+  
   ## randomly (for now) select data boservation locations across time
 
   ## to do this, we sample, with replacement, from the lat-longs that we used to sim the GP
@@ -248,8 +252,8 @@ sim.realistic.data <- function(reg,
   ## extract the value of the true surface at data locations
   true_p_logit<- numeric(nrow(sim.dat))
   for(yy in unique(year_list)){
-    true_p_logit[which(sim.dat[, year] == yy)] <- raster::extract(x = true.rast, y = sim.dat[year == yy, .(long, lat)],
-                                                                  layer = which(year_list %in% yy))
+    true_p_logit[which(sim.dat[, year] == yy)] <- raster::extract(x = true.rast[[ which(year_list %in% yy) ]],
+                                                                  y = sim.dat[year == yy, .(long, lat)])
   }
   sim.dat[, p_true := inv.logit(true_p_logit)]
 
@@ -271,6 +275,9 @@ sim.realistic.data <- function(reg,
   ############################################################################################
   ## for convenience, we also extract covariate values to the same df (and the true gp val) ##
   ############################################################################################
+
+  message('\n\nPREPARE AND SAVE OBJECTS\n\n')
+
   cov.mat <- matrix(ncol = length(cov_layers),
                     nrow = nrow(sim.dat))
   for( cc in 1:length(cov_layers) ){
@@ -278,7 +285,8 @@ sim.realistic.data <- function(reg,
 
     if(dim(cov_layers[[cc]])[3] > 1){
       for(ll in 1:dim(cov_layers[[cc]])[3]){
-        tmp[which(sim.dat[, year] == year_list[ll])] <- raster::extract(x = cov_layers[[cc]], y = sim.dat[year == year_list[ll], .(long, lat)],
+        tmp[which(sim.dat[, year] == year_list[ll])] <- raster::extract(x = cov_layers[[cc]],
+                                                                        y = sim.dat[year == year_list[ll], .(long, lat)],
                                                                         layer = ll)[, 1]
       }
     } else{
