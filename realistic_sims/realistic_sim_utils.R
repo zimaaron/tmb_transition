@@ -68,8 +68,13 @@ sim.realistic.data <- function(reg,
                                covs,
                                simple_raster,
                                simple_polygon, 
-                               out.dir){
+                               out.dir,
+                               seed){
 
+  ## set seed if required
+  if(!is.null(seed)) set.seed(seed)
+
+  
   ########################################
   ## load and prepare covariate rasters ##
   ########################################  

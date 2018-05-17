@@ -115,6 +115,11 @@ sim.obj <- sim.realistic.data(reg = reg,
                               covs = covs,
                               simple_raster = simple_raster,
                               simple_polygon = simple_polygon, 
-                              out.dir = out.dir)
+                              out.dir = out.dir,
+                              seed = 123456)
 
-                              
+sim.dat <- sim.obj$sim.dat ## simulated data, lat-long, year, covs, true surface
+covs.gp <- cov_gp_raster   ## rasters of covs and true simulated gp field
+
+##############################
+
