@@ -168,7 +168,8 @@ sim.realistic.data <- function(reg,
                   variance = sp.var,
                   alpha = sp.alpha,
                   mesh = reg.mesh,
-                  n = length(year_list))
+                  n = length(year_list),
+                  seed = seed)
 
   ## introduce temporal ar1 correlation at the pixel level
   gp.cor <- gp.iid
