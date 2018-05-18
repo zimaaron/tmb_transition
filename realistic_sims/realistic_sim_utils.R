@@ -329,7 +329,7 @@ sim.realistic.data <- function(reg,
   #########################
   return(list(sim.dat = sim.dat,
               cov.gp.rasters = cov_layers,
-              true.rast = true.rast
+              true.rast = true.rast, 
               mesh_s = reg.mesh))
 }
 
