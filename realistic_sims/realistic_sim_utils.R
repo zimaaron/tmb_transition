@@ -232,6 +232,8 @@ sim.realistic.data <- function(reg,
   }
   dev.off()
 
+  saveRDS(sprintf('%s/simulated_obj/true_surface_raster.rds', out.dir), object = true.rast)
+
   ## now the surface simulation is done and all we need to do is simulate the data
 
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -326,6 +328,23 @@ sim.realistic.data <- function(reg,
   ## return a named list ##
   #########################
   return(list(sim.dat = sim.dat,
-              cov_gp_raster = cov_layers, 
+              cov.gp.rasters = cov_layers,
+              true.rast = true.rast
               mesh_s = reg.mesh))
+}
+
+
+
+#######
+## Helper function for turning an xyzt table into a raster
+rasterFromXYZT <- function(table,
+                           z,t){
+  require(data.table)
+  n_periods = length(unique(table[,t]))
+  table$t=table[,t]
+  res=  stack(rasterFromXYZ(as.matrix(table[t==1,c('x','y',z),with=F])))
+  if(n_periods>1)
+    for(r in 2:n_periods)
+      res=addLayer(res, rasterFromXYZ(as.matrix(table[t==r,c('x','y',z),with=F])))
+  return(res)
 }

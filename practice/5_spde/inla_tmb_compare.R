@@ -81,8 +81,9 @@ X_xp = as.matrix(cbind(1, dt[,names(simobj$cov.raster.list[[1]]),with=FALSE]))
 
 
 Data = list(n_i=nrow(dt),                   ## Total number of observations
-            n_x=mesh_s$n,                   ## Number of vertices in SPDE mesh
+            n_s=mesh_s$n,                   ## Number of vertices in SPDE mesh
             n_t=nperiod,                    ## Number of periods
+            n_z = 1, ## 3rd dim
             n_p=ncol(X_xp),                 ## Number of columns in covariate matrix X
 ##            x_s=mesh_s$idx$loc-1,           ## Association of each cluster with a given vertex in SPDE mesh
             c_i=dt$deaths,                  ## Number of observed deaths in the cluster (N+ in binomial likelihood)
