@@ -71,23 +71,24 @@ ncores <- 2
 
 ## pick a country (or region) using iso3 codes (or region names)
 reg       <- 'NGA'
-year_list <- seq(2000, 2015, by = 5)
+year_list <- seq(2000, 2015, by = 1)
 
 ## covariate options (need matching name and measure)
 covs <- data.table(name = c('access2', 'distrivers', 'evi'   , 'mapincidence'),
                    meas = c('mean'   , 'mean'      , 'median', 'mean'))
 betas <- c(.5, -1, 1, -.5)
+alpha <- 0 ## intercept
 
 
 ## gp options
-sp.kappa <- 1.0
-sp.var   <- 0.5
-sp.alpha <- 2.0
+sp.range <- sqrt(8) ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
+sp.var   <- 0.5     ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
+sp.alpha <- 2.0     ## matern smoothness = sp.alpha - 1 (for R^2 domain)
 t.rho    <- 0.8
 maxedge  <- 0.2 ## TODO this is not passed anywhere yet... should go to cutoff in mesh
 
 ## simulated data options
-n.clust <- 100 ## clusters PER TIME slice
+n.clust <- 50  ## clusters PER TIME slice
 m.clust <- 35  ## mean number of obs per cluster (poisson)
 
 ## prediction options
@@ -117,6 +118,26 @@ pop_raster         <- raster_list[['pop_raster']]
 ###################
 ## simulate data ##
 ###################
+
+## make an object with true param values
+true.params <- data.table(param = c('alpha',
+                                    paste0(covs$name),
+                                    'nom. range',
+                                    'nom. var',
+                                    'time rho'
+                                    ),
+                          truth = c(alpha,
+                                    betas,
+                                    sp.range,
+                                    sp.var,
+                                    t.rho))
+
+saveRDS(file = sprintf('%s/simulated_obj/true_param_table.rds', out.dir),
+        object = true.params)
+
+## convert sp.range and sp.var into sp.kappa for rspde function
+sp.kappa <- sqrt(8) / sp.range
+
 sim.obj <- sim.realistic.data(reg = reg,
                               year_list = year_list,
                               betas = betas,
@@ -131,8 +152,14 @@ sim.obj <- sim.realistic.data(reg = reg,
                               out.dir = out.dir,
                               seed = 123456)
 
+saveRDS(file = sprintf('%s/simulated_obj/sim_obj.rds', out.dir),
+        object = sim.obj)
+
 dt <- sim.obj$sim.dat ## simulated data, lat-long, year, covs, true surface
-covs.gp <- sim.obj$cov_gp_raster   ## rasters of covs and true simulated gp field
+covs.gp <- sim.obj$cov.gp.rasters   ## rasters of covs and true simulated gp field
+true.gp <- covs.gp[['gp']]
+cov_list <- covs.gp$gp <- NULL
+true.rast <- sim.obj$true.rast
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -204,7 +231,7 @@ X_xp = as.matrix(cbind(1, dt[,covs[, name], with=FALSE]))
 
 Data = list(num_i=nrow(dt),                 ## Total number of observations
             num_s=mesh_s$n,                 ## Number of vertices in SPDE mesh
-            num_t=nperiod,                  ## Number of periods
+            num_t=nperiods,                 ## Number of periods
             num_z=1,
             y_i=dt[, Y], ##                 ## Number of observed deaths in the cluster (N+ in binomial likelihood)
             n_i=dt[, N], ##                 ## Number of observed exposures in the cluster (N in binomial likelihood)
@@ -215,7 +242,7 @@ Data = list(num_i=nrow(dt),                 ## Total number of observations
             M1=spde$param.inla$M1,          ## SPDE sparse matrix
             M2=spde$param.inla$M2,          ## SPDE sparse matrix
             Aproj = A.proj,                 ## mesh to prediction point projection matrix
-            flag = 1, ## do normalization outside of optimization
+            flag = 1, ##                    ## do normalization outside of optimization
             options = c(1, 1))              ## option1==1 use priors
 
 ## staring values for parameters
@@ -224,7 +251,7 @@ Parameters = list(alpha_j   =  rep(0,ncol(X_xp)),                 ## FE paramete
                   logkappa=0.0,	                                  ## Matern Range parameter
                   trho=0.5,
                   zrho=0.5,
-                  Epsilon_stz=matrix(1, nrow=mesh_s$n, ncol=nperiod))     ## GP locations
+                  Epsilon_stz=matrix(1, nrow=mesh_s$n, ncol=nperiods))     ## GP locations
 
 
 #########
@@ -254,7 +281,7 @@ fit_time_tmb<- proc.time()[3] - ptm
 ## Get standard errors
 SD0 = TMB::sdreport(obj,getJointPrecision=TRUE)
 tmb_total_fit_time <- proc.time()[3] - ptm 
-tmb_sdreport_time <-  tmb_total_fit_time - tmb_fit_time
+tmb_sdreport_time <-  tmb_total_fit_time - fit_time_tmb
 
 #############
 ## PREDICT ##
@@ -381,7 +408,7 @@ A <- inla.spde.make.A(
 )
 space   <- inla.spde.make.index("space",
                                 n.spde = spde$n.spde,
-                                n.group = nperiod)
+                                n.group = nperiods)
 
 inla.covs <- covs$name
 design_matrix <- data.frame(int = 1, dt[, inla.covs, with=F])
@@ -451,7 +478,7 @@ l <- do.call(rbind,inla_vals)
 pred_inla <- s+l
 
 ## make them into time bins
-len = nrow(pred_inla)/nperiod
+len = nrow(pred_inla)/nperiods
 totalpredict_time_inla <- proc.time()[3] - ptm
 
 ##########
@@ -511,10 +538,19 @@ res[,hyperpar_logkappa_sd := c(res_fit$summary.hyperpar[2,2], sqrt(SD0$cov.fixed
 res[,hyperpar_rho_mean := c(res_fit$summary.hyperpar[3,1], SD0$par.fixed['trho']) ]
 res[,hyperpar_rho_sd := c(res_fit$summary.hyperpar[3,2], sqrt(SD0$cov.fixed['trho','trho'])) ]
 
+## truth
+true.params <- c(rep(NA, 9),
+                 alpha, NA, ## intercept
+                 c(rbind(betas, rep(NA, length(betas)))), ## fixed effect coefs
+                 -0.5 * log(4 * pi * sp.var * sp.kappa^2), NA, ## log tau
+                 log(sp.kappa), NA, ## log kappa
+                 t.rho, NA ## time rho
+                 )
+
 rr <- data.table(item=colnames(res))
-rr <- cbind(rr,t(res))
-names(rr) <- c('_','R-INLA','TMB')
-rr$diff <- rr[,2]-rr[,3]
+rr <- cbind(rr,true.params, t(res))
+names(rr) <- c('quantity','TRUE', 'R-INLA','TMB')
+rr$diff <- rr[,3]-rr[,4]
 
 ## we can now plot this table with: grid.table(rr)
 
@@ -546,8 +582,8 @@ for(thing in c('median','stdev')){
           rtmb  <-  ras_sdv_tmb[[i]]
         }
 
-        true <- true.mr
-        values(true) <- 
+        true <- true.rast[[i]] ## in logit space
+        values(true) <- plogis(values(true))
       }
 
       
@@ -559,7 +595,7 @@ for(thing in c('median','stdev')){
       plot(rinla-rtmb, maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend=T, main=paste0('DIFFERENCE ',thing))
       plot(rtmb,  maxpixel=1e7, col=rainbow(100), axes=FALSE, legend.args=list(text='', side=2, font=1, line=0, cex=0.1), main='TMB',zlim=c(0,maxes))
       plot(rinla, maxpixel=1e7, col=rainbow(100), axes=FALSE, legend=FALSE, main='R-INLA',zlim=c(0,maxes))
-      plot(covs.gp[['gp']][[i]], meain = 'TRUTH')
+      plot(true, maxpixel=1e7, col=rainbow(100), axes=FALSE, legend=FALSE, main='TRUE (mean)',zlim=c(0,maxes))
       
       # scatter
       par(mar = c(4, 4, 2, 2),bty='n')

@@ -63,6 +63,7 @@ sim.realistic.data <- function(reg,
                                sp.kappa,
                                sp.alpha,
                                t.rho,
+                               nug.var = NULL, 
                                n.clust,
                                m.clust,
                                covs,
@@ -202,6 +203,50 @@ sim.realistic.data <- function(reg,
   }
   dev.off()
 
+  ## now we can make the iid nugget
+
+  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  ## simulate IID normal draws to add as nugget
+  
+  if(!is.null(nug.var)){
+
+    message('\n\nSIMULATE NUGGET\n\n')
+
+    ## take rnorm() draws and convert them to rasters
+    for(cc in 1:length(year_list)){
+      if(cc == 1){ ## initialize
+        nug.rast <- rasterize(x = pix.pts@data[, 2:3],
+                              y = simple_raster,
+                              field = rnorm(n = nrow(pix.pts@data),
+                                            mean = 0,
+                                            sd = sqrt(nug.var)))
+      }else{ ## add a layer
+        nug.rast <- addLayer(gp.rast,
+                             rasterize(x = pix.pts@data[, 2:3],
+                                       y = simple_raster,
+                                       field = rnorm(n = nrow(pix.pts@data),
+                                                     mean = 0,
+                                                     sd = sqrt(nug.var))))
+
+        ## plot nugget
+        pdf(sprintf('%s/simulated_obj/nugget_plot.pdf', out.dir), width = 16, height = 16)
+        par(mfrow = rep( ceiling(sqrt( dim(gp.rast)[3] )), 2))
+        for(yy in 1:dim(gp.rast)[3]){
+          raster::plot(gp.rast[[yy]],
+                       main = paste('GP',
+                                    year_list[yy]), 
+                       sep = ': ')
+        }
+        dev.off()
+        
+      } ## else
+    } ## year loop
+  } ## non-null nug.var
+
+
   ## now we can make the true surface
 
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -216,6 +261,7 @@ sim.realistic.data <- function(reg,
   true.rast <- gp.rast
   for(cc in 1:length(cov_layers)){
     true.rast <- true.rast + betas[cc] * cov_layers[[cc]] ## should work for both stationary and time-varying
+    if(!is.null(nug.var)) true.rast <- true.rast + nug.rast[[cc]]
   }
 
   ## we append the gp to the cov_layers
@@ -233,6 +279,7 @@ sim.realistic.data <- function(reg,
   dev.off()
 
   saveRDS(sprintf('%s/simulated_obj/true_surface_raster.rds', out.dir), object = true.rast)
+
 
   ## now the surface simulation is done and all we need to do is simulate the data
 
