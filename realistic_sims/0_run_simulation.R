@@ -8,7 +8,7 @@ options(error = recover)
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
-logging_note <- 'This is a fresh test after turning sims into a function.'
+logging_note <- 'Simulating all years NGA data with nugget'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -47,7 +47,7 @@ out.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', run_date)
 dir.create(out.dir)
 fileConn <- file(sprintf("%s/run_notes.txt", out.dir))
 writeLines(logging_note, fileConn)
-close(fileConn)
+close(fileConn)w
 
 ## Now we can switch to the TMB repo
 setwd(tmb_repo)
@@ -81,11 +81,12 @@ alpha <- 0 ## intercept
 
 
 ## gp options
-sp.range <- sqrt(8) ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
-sp.var   <- 0.5     ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
-sp.alpha <- 2.0     ## matern smoothness = sp.alpha - 1 (for R^2 domain)
-t.rho    <- 0.8
-maxedge  <- 0.2 ## TODO this is not passed anywhere yet... should go to cutoff in mesh
+sp.range <- sqrt(8)  ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
+sp.var   <- 0.5      ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
+sp.alpha <- 2.0      ## matern smoothness = sp.alpha - 1 (for R^2 domain)
+nug.var  <- 0.25 ^ 2 ## nugget variance
+t.rho    <- 0.8      ## annual temporal auto-corr
+maxedge  <- 0.2      ## TODO this is not passed anywhere yet... should go to cutoff in mesh
 
 ## simulated data options
 n.clust <- 50  ## clusters PER TIME slice
@@ -93,6 +94,16 @@ m.clust <- 35  ## mean number of obs per cluster (poisson)
 
 ## prediction options
 ndraws <- 250
+
+
+## end of user inputs
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+## transform some inputs into other useful quantities
+
+## convert sp.range and sp.var into sp.kappa for rspde function
+sp.kappa <- sqrt(8) / sp.range
+
 
 ## validation options
 
@@ -120,7 +131,7 @@ pop_raster         <- raster_list[['pop_raster']]
 ###################
 
 ## make an object with true param values
-true.params <- data.table(param = c('alpha',
+true.params <- data.table(param = c('int',
                                     paste0(covs$name),
                                     'nom. range',
                                     'nom. var',
@@ -135,15 +146,13 @@ true.params <- data.table(param = c('alpha',
 saveRDS(file = sprintf('%s/simulated_obj/true_param_table.rds', out.dir),
         object = true.params)
 
-## convert sp.range and sp.var into sp.kappa for rspde function
-sp.kappa <- sqrt(8) / sp.range
-
 sim.obj <- sim.realistic.data(reg = reg,
                               year_list = year_list,
                               betas = betas,
                               sp.kappa = sp.kappa,
                               sp.alpha = sp.alpha,
                               t.rho = t.rho,
+                              nug.var = nug.var, 
                               n.clust = n.clust,
                               m.clust = m.clust,
                               covs = covs,
