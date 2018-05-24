@@ -234,8 +234,8 @@ sim.realistic.data <- function(reg,
         ## plot nugget
         pdf(sprintf('%s/simulated_obj/nugget_plot.pdf', out.dir), width = 16, height = 16)
         par(mfrow = rep( ceiling(sqrt( dim(gp.rast)[3] )), 2))
-        for(yy in 1:dim(gp.rast)[3]){
-          raster::plot(gp.rast[[yy]],
+        for(yy in 1:dim(nug.rast)[3]){
+          raster::plot(nug.rast[[yy]],
                        main = paste('GP',
                                     year_list[yy],
                                     sep = ': ')) 
