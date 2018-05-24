@@ -198,8 +198,8 @@ sim.realistic.data <- function(reg,
   for(yy in 1:dim(gp.rast)[3]){
     raster::plot(gp.rast[[yy]],
                  main = paste('GP',
-                              year_list[yy]), 
-                 sep = ': ')
+                              year_list[yy],
+                              sep = ': '))
   }
   dev.off()
 
@@ -237,8 +237,8 @@ sim.realistic.data <- function(reg,
         for(yy in 1:dim(gp.rast)[3]){
           raster::plot(gp.rast[[yy]],
                        main = paste('GP',
-                                    year_list[yy]), 
-                       sep = ': ')
+                                    year_list[yy],
+                                    sep = ': ')) 
         }
         dev.off()
         
@@ -273,8 +273,8 @@ sim.realistic.data <- function(reg,
   for(yy in 1:dim(true.rast)[3]){
     raster::plot(true.rast[[yy]],
                  main = paste('GP',
-                              year_list[yy]), 
-                 sep = ': ')
+                              year_list[yy], 
+                              sep = ': '))
   }
   dev.off()
 
