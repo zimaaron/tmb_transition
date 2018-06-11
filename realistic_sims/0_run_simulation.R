@@ -8,7 +8,7 @@ options(error = recover)
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
-logging_note <- 'Simulating all years NGA data with nugget'
+logging_note <- 'Running these models with real HIV SSSA data. using weights'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -47,7 +47,7 @@ out.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', run_date)
 dir.create(out.dir)
 fileConn <- file(sprintf("%s/run_notes.txt", out.dir))
 writeLines(logging_note, fileConn)
-close(fileConn)w
+close(fileConn)
 
 ## Now we can switch to the TMB repo
 setwd(tmb_repo)
@@ -60,11 +60,21 @@ source('./realistic_sims/realistic_sim_utils.R')
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+## to make it easier to run real data from this code, usually have SIM=TRUE, REAL=FALSE
+use_real_data <- FALSE
+use_sim_data  <- TRUE
+
+## should we save this data to mbg input_data?
+save.as.input.data <- FALSE
+data.tag <- '_allyrs_nug'
+
+
+
 ##############################
 ## setup tunable parameters ##
 ##############################
 
-## TODO, make this one big function with these params as args
+## TODO, set this up for qsub. i.e. use commandArgs()
 
 ## environment options
 ncores <- 2
@@ -84,7 +94,7 @@ alpha <- 0 ## intercept
 sp.range <- sqrt(8)  ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
 sp.var   <- 0.5      ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
 sp.alpha <- 2.0      ## matern smoothness = sp.alpha - 1 (for R^2 domain)
-nug.var  <- 0.25 ^ 2 ## nugget variance
+nug.var  <- .5 ^ 2 ## nugget variance
 t.rho    <- 0.8      ## annual temporal auto-corr
 maxedge  <- 0.2      ## TODO this is not passed anywhere yet... should go to cutoff in mesh
 
@@ -94,6 +104,10 @@ m.clust <- 35  ## mean number of obs per cluster (poisson)
 
 ## prediction options
 ndraws <- 250
+
+## mesh params
+mesh_s_max_edge <- "c(0.2,5)"
+mesh_s_offset <- "c(1,5)"
 
 
 ## end of user inputs
@@ -114,6 +128,7 @@ sp.kappa <- sqrt(8) / sp.range
 ###########################################
 ## load in region/counry shapes and covs ##
 ###########################################
+dir.create(sprintf('%s/simulated_obj', out.dir), recursive = TRUE)
 
 ## load in the region shapefile and prep the boundary
 gaul_list           <- get_gaul_codes(reg)
@@ -170,6 +185,20 @@ true.gp <- covs.gp[['gp']]
 cov_list <- covs.gp$gp <- NULL
 true.rast <- sim.obj$true.rast
 
+## save (if desired) this simulated dataset to .../mbg/input_data for mbg pipeline
+if(save.as.input.data){
+  df <- data.table(longitude = dt$long,
+                   latitude = dt$lat,
+                   year = dt$year,
+                   country = reg,
+                   N = dt$N,
+                   simulation = dt$Y, 
+                   weight = 1)
+  write.csv(file = sprintf('/share/geospatial/mbg/input_data/simulation%s.csv', data.tag),
+            x = df)
+}
+
+
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -183,6 +212,65 @@ dir.create(sprintf('%s/modeling/inputs', out.dir), recursive = TRUE)
 dir.create(sprintf('%s/modeling/tmb/outputs', out.dir), recursive = TRUE)
 dir.create(sprintf('%s/modeling/inla/outputs', out.dir), recursive = TRUE)
 
+#########################################
+## load in some real data (if desired) ##
+#########################################
+
+if(use_real_data){
+
+  reg <- 'sssa'
+  indicator = 'hiv_test'
+  indicator_group = 'hiv'
+  age <- holdout <- test <- 0
+  yearload <- 'annual'
+  withtag <- TRUE
+  datatag <- '_survey'
+  use_share <- 'FALSE'
+  year_list <- 2000:2016
+  
+  pathaddin <- paste0('_bin',age,'_',reg,'_',holdout)
+
+  
+  ## load in the region shapefile and prep the boundary
+  gaul_list           <- get_gaul_codes(reg)
+  simple_polygon_list <- load_simple_polygon(gaul_list = gaul_list, buffer = 1, tolerance = 0.4, use_premade = T)
+  subset_shape        <- simple_polygon_list[[1]]
+  simple_polygon      <- simple_polygon_list[[2]]
+
+  ## Load list of raster inputs (pop and simple)
+  raster_list        <- build_simple_raster_pop(subset_shape)
+  simple_raster      <- raster_list[['simple_raster']]
+  pop_raster         <- raster_list[['pop_raster']]
+
+  run_date <- make_time_stamp(TRUE)
+  dt <- load_input_data(indicator   = gsub(paste0('_age',age),'',indicator),
+                        simple      = simple_polygon,
+                        agebin      = age,
+                        removeyemen = TRUE,
+                        pathaddin   = pathaddin,
+                        years       = yearload,
+                        withtag     = as.logical(withtag),
+                        datatag     = datatag,
+                        use_share   = as.logical(use_share),
+                        yl          = year_list)
+
+  ## just to make sure everything goes smoothly, add in single datapoints to missing years
+  missing.yrs <- setdiff(year_list, unique(dt[, year]))
+
+  if(length(missing.yrs) > 0){
+    for(yy in missing.yrs){
+      new.row <- dt[1, ]
+      new.row[, weight := 0]
+      new.row[, year := yy]
+      dt <- rbind(dt, new.row)
+    }
+  }
+  
+
+  dt[, Y:= hiv_test]
+
+}
+
 
 ###############################
 ## SETUP SOME SHARED OBJECTS ##
@@ -193,17 +281,17 @@ dt[, id := 1:.N]
 dt[, period_id := as.numeric(as.factor(dt[, year]))]
 dt.coords <- cbind(dt$long,dt$lat)
 dt.pers   <- dt[, period_id]
-nperiods  <- length(unique(dt.pers))
+nperiods  <- length(year_list)
 
 ## Build spatial mesh over modeling area
-## same mesh across time (TODO: only for now)
-mesh_s <- inla.mesh.2d(,
-                       inla.sp2segment(simple_polygon)$loc,
-                       max.edge=c(1,5),
-                       cutoff=0.2)
+mesh_s <- build_space_mesh(d           = dt,
+                           simple      = simple_polygon,
+                           max_edge    = mesh_s_max_edge,
+                           mesh_offset = mesh_s_offset)
+
 pdf(sprintf('%s/modeling/inputs/mesh.pdf', out.dir))
 plot(mesh_s)
-plot(covs.gp[[1]], add = TRUE) ## just to show loc of simple_raster under mesh for scale
+plot(simple_raster, add = TRUE) ## just to show loc of simple_raster under mesh for scale
 plot(mesh_s, add = TRUE)
 dev.off()
 
@@ -235,7 +323,8 @@ saveRDS(file = sprintf('%s/modeling/inputs/spde.rds', out.dir), spde)
 ## SETUP ##
 ###########
 
-X_xp = as.matrix(cbind(1, dt[,covs[, name], with=FALSE]))
+if(use_sim_data) X_xp = as.matrix(cbind(1, dt[,covs[, name], with=FALSE]))
+if(use_real_data) X_xp = as.matrix(rep(1, nrow(dt)), ncol = 1, nrow = nrow(dt))
 
 
 Data = list(num_i=nrow(dt),                 ## Total number of observations
@@ -246,6 +335,7 @@ Data = list(num_i=nrow(dt),                 ## Total number of observations
             n_i=dt[, N], ##                 ## Number of observed exposures in the cluster (N in binomial likelihood)
             t_i=as.numeric(as.factor(dt[, year]))-1, ## Sample period of ( starting at zero )
             w_i=rep(1,nrow(dt)),
+            w_i = dt[, weight], 
             X_ij=X_xp,                      ## Covariate design matrix
             M0=spde$param.inla$M0,          ## SPDE sparse matrix
             M1=spde$param.inla$M1,          ## SPDE sparse matrix
@@ -318,7 +408,7 @@ for(p in 1:nperiods){
 
 
 ## get space-time-locs grid to predict onto
-f_orig <- data.table(cbind(coordinates(cov_list[[1]][[1]]), t=1))
+f_orig <- data.table(cbind(coordinates(simple_raster), t=1))
 # add time periods
 fullsamplespace <- copy(f_orig)
 for(p in 2:nperiods){
@@ -420,7 +510,7 @@ space   <- inla.spde.make.index("space",
                                 n.group = nperiods)
 
 inla.covs <- covs$name
-design_matrix <- data.frame(int = 1, dt[, inla.covs, with=F])
+design_matrix <- data.frame(int = rep(1, nrow(dt)))#, dt[, inla.covs, with=F])
 stack.obs <- inla.stack(tag='est',
                         data=list(Y=dt$Y), ## response
                         A=list(A,1), ## proj matrix, not sure what the 1 is for

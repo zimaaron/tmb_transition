@@ -30,12 +30,20 @@ library(viridis)
 
 ## #############################################################################
 
-plot.dir = '/homes/azimmer'
+plot.dir = '/homes/azimmer/comp_plots'
 
-tmb.rd  <- "2018_05_22_10_45_31"
-## inla.rd <- "2018_05_22_10_45_29" ## no nug, data all years, all year time mesh
-inla.rd <- '2018_05_23_15_34_59' ## no nug, data all years, c(1, 6, 11, 16) time mesh
+tmb.rd  <- "2018_05_25_10_02_48" ## no nug
+#tmb.rd  <- "2018_05_25_10_22_08" ## nug
+##inla.rd <- "2018_05_25_10_22_43" ## all years, no nug
+##inla.rd <- "2018_05_25_10_23_26" ## all years, yes nug
+inla.rd <- "2018_05_25_10_23_57" ## 5 years, no nug
+#inla.rd <- "2018_05_25_10_24_15" ## 5 years, with nug
 true.rd <- "2018_05_18_13_03_51"
+
+#plot_name <- '_allyears_nonug'
+#plot_name <- '_allyears_nug'
+plot_name <- '_5years_nonug'
+#plot_name <- '_5years_nug'
 
 reg = 'nga'
 
@@ -106,7 +114,7 @@ subset_shape        <- simple_polygon_list[[1]]
 simple_polygon      <- simple_polygon_list[[2]]
 
 
-pdf(sprintf('%s/inla_tmb_full_pipeline_raster_comparison_%s_%s_plot.pdf',plot.dir, inla.rd, tmb.rd), height=15,width=30)
+pdf(sprintf('%s/inla_tmb%s_%s_%s_plot.pdf',plot.dir, plot_name, inla.rd, tmb.rd), height=15,width=30)
 
 grid.table(param.table)
 
@@ -188,10 +196,12 @@ i.agg[, model := 'INLA']
 
 all.agg <- rbind(t.agg, i.agg)
 
+## now we also need to get the true time series to add to the plot
 
-pdf(sprintf('%s/inla_tmb_full_pipeline_time_aggregation_comparison_%s_%s_plot.pdf',plot.dir, inla.rd, tmb.rd), height=12,width=18)
 
-for(ll in 0:2){
+pdf(sprintf('%s/inla_tmb_%s_time_aggregation_comparison_%s_%s_plot.pdf',plot.dir, plot_name, inla.rd, tmb.rd), height=12,width=18)
+
+for(ll in 0:1){
 
   plot.dat <- subset(all.agg, level == ll)
   p <- ggplot(plot.dat) + geom_line( aes(x = year, y = mean, group = model, color = model)) +

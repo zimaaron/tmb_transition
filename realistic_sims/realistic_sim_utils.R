@@ -173,26 +173,32 @@ sim.realistic.data <- function(reg,
                   seed = seed)
 
   ## introduce temporal ar1 correlation at the pixel level
-  gp.cor <- gp.iid
-  for(ii in 2:ncol(gp.cor)){
-    gp.cor[, ii] <- t.rho * gp.cor[, ii - 1] + sqrt(1 - t.rho ^ 2) * gp.iid[, ii]
-  }
-
-  
-  ## convert them to rasters
-  for(cc in 1:ncol(gp.iid)){
-    if(cc == 1){
-      gp.rast <- rasterize(x = pix.pts@data[, 2:3],
-                           y = simple_raster,
-                           field = gp.cor[, cc])
-    }else{
-      gp.rast <- addLayer(gp.rast,
-                          rasterize(x = pix.pts@data[, 2:3],
-                                    y = simple_raster,
-                                    field = gp.cor[, cc]))
+  if(length(year_list) > 1){ ## then, correlate gp draws
+    gp.cor <- gp.iid
+    for(ii in 2:ncol(gp.cor)){
+      gp.cor[, ii] <- t.rho * gp.cor[, ii - 1] + sqrt(1 - t.rho ^ 2) * gp.iid[, ii]
     }
-  }
 
+    
+    ## convert them to rasters
+    for(cc in 1:ncol(gp.iid)){
+      if(cc == 1){
+        gp.rast <- rasterize(x = pix.pts@data[, 2:3],
+                             y = simple_raster,
+                             field = gp.cor[, cc])
+      }else{
+        gp.rast <- addLayer(gp.rast,
+                            rasterize(x = pix.pts@data[, 2:3],
+                                      y = simple_raster,
+                                      field = gp.cor[, cc]))
+      }
+    }
+  }else{ ## we have a single year, no time corr needed
+    gp.rast <- rasterize(x = pix.pts@data[, 2:3],
+                             y = simple_raster,
+                             field = gp.iid)
+  }
+  
   pdf(sprintf('%s/simulated_obj/st_gp_plot.pdf', out.dir), width = 16, height = 16)
   par(mfrow = rep( ceiling(sqrt( dim(gp.rast)[3] )), 2))
   for(yy in 1:dim(gp.rast)[3]){
@@ -261,12 +267,13 @@ sim.realistic.data <- function(reg,
   true.rast <- gp.rast
   for(cc in 1:length(cov_layers)){
     true.rast <- true.rast + betas[cc] * cov_layers[[cc]] ## should work for both stationary and time-varying
-    if(!is.null(nug.var)) true.rast <- true.rast + nug.rast[[cc]]
   }
 
   ## we append the gp to the cov_layers
   cov_layers[['gp']] <- gp.rast
 
+  ## and, add nugget if desired
+  if(!is.null(nug.var)) true.rast <- true.rast + nug.rast
 
   pdf(sprintf('%s/simulated_obj/true_surface_plot.pdf', out.dir), width = 16, height = 16)
   par(mfrow = rep( ceiling(sqrt( dim(true.rast)[3] )), 2))
@@ -321,6 +328,9 @@ sim.realistic.data <- function(reg,
   ## and get empirical p_obs
   sim.dat[, p_obs := Y / N]
 
+  ## lastly, we tag on weight. TODO flesh out weighting options
+  sim.dat[, weight := 1]
+  
   ## now we just finish by making some convenience objects and saving everything
 
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
