@@ -1,8 +1,91 @@
 ## some functions to help with realistic inla/tmb simulation comparison
 ## written by a0z 5/17/18
 
+## qsub_sim: function to launch sims (and sim comparisons) on the cluster
+qsub_sim <- function(reg,
+                     year_list,
+                     cov_names,
+                     cov_measures,
+                     betas,
+                     alpha,
+                     sp.range,
+                     sp.alpha,
+                     nug.var,
+                     t.rho,
+                     mesh_s_max_edge,
+                     n.clust,
+                     m.clust,
+                     sample.strat,
+                     cores, 
+                     ndraws,
+                     run_date,
+                     codepath, ## full path to code to run
+                     iter, ## if looping through muliple models, used to give different names
+                     singularity = 'default',
+                     singularity_opts = NULL,
+                     logloc = NULL ## defaults to input/output dir in sim run_date dir
+                     ){
 
-## first, a function to simulate from a GF using INLA
+  ## some early checks
+  if(length(unique(c(length(cov_names), length(cov_measures), length(betas)))) != 1){
+    messge('cov_names, cov_measrures, and betas lengths do not match! fix and rerun')
+    stop()
+  }
+
+  if(sp.range < 0 | sp.var < 0 | sp.alpha < 0 | nug.var < 0){
+    message('sp range, var, alpha, or nugget var is not positive. fix and rerun!')
+    stop()
+  }
+
+  ## setup some stuff that I don't think I'll want to change
+  proj <- 'proj_geo_nodes'
+  node.flag <- '-l geos_node=TRUE'
+  shell <- '/share/code/geosptial/lbd_core/mbg_central/share_scripts/shell_sing.sh'
+  sing_image <- get_singularity(image = singularity)
+  if(is.null(singularity_opts)) singularity_opts <- list(SET_OMP_THREADS=1, SET_MKL_THREADS=1)
+  
+  ## Piece together lengthy `qsub` command
+  qsub <- paste0("qsub",
+                 " -e ", logloc, "/errors",
+                 " -o ", logloc, "/output",
+                 " -pe multi_slot ", cores,
+                 " -P ", proj, " ", node.flag)
+
+  ## add on stuff to launch singularity
+  qsub <- qsub_sing_envs(qsub, singularity_opts,
+                         sing_image)
+
+  ## append job name, shell, and code to run 
+  qsub <- paste0(qsub,
+                 sprintf(" -N job_%s_iter_%i", reg, iter), ## job name
+                 " ", shell, " ", codepath) ## shell and code path
+
+  ## add on all remaining arguments 
+  qsub <- paste(qsub,
+                reg, ## commandArgs 4
+                year_list, ## commandArgs 5
+                cov_names,
+                cov_measures,
+                betas,
+                alpha,
+                sp.range, ## commandArgs 10
+                sp.alpha,
+                nug.var,
+                t.rho,
+                mesh_s_max_edge,
+                n.clust, ## commandArgs 15
+                m.clust,
+                sample.strat,
+                cores, 
+                ndraws,
+                run_date, ## commandArgs 20
+                sep = " ")
+
+  return(qsub)
+  
+}
+
+## a function to simulate from a GF using INLA
 ## this function is taken from the spde tutorial
 rspde <- function (coords, kappa, variance = 1, alpha = 2, n = 1, mesh,
                    verbose = FALSE, seed, return.attributes = FALSE)

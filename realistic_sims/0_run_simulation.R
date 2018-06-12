@@ -96,7 +96,9 @@ sp.var   <- 0.5      ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
 sp.alpha <- 2.0      ## matern smoothness = sp.alpha - 1 (for R^2 domain)
 nug.var  <- .5 ^ 2 ## nugget variance
 t.rho    <- 0.8      ## annual temporal auto-corr
-maxedge  <- 0.2      ## TODO this is not passed anywhere yet... should go to cutoff in mesh
+mesh_s_max_edge <- "c(0.2,5)"
+mesh_s_offset <- "c(1,5)"
+
 
 ## simulated data options
 n.clust <- 50  ## clusters PER TIME slice
@@ -105,9 +107,6 @@ m.clust <- 35  ## mean number of obs per cluster (poisson)
 ## prediction options
 ndraws <- 250
 
-## mesh params
-mesh_s_max_edge <- "c(0.2,5)"
-mesh_s_offset <- "c(1,5)"
 
 
 ## end of user inputs
