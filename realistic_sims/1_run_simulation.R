@@ -15,6 +15,9 @@ logging_note <- 'Running these models with real HIV SSSA data. using weights'
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+par.iter <- as.numeric(  commandArgs()[4]) ## all we need is to grab the (parallel) iteration of this run
+run_date <- as.character(commandArgs()[5]) ## and the run_date so we know where to load from
+
 #############################################
 ## setup the environment for singularity R ##
 #############################################
@@ -41,14 +44,6 @@ library(grid)
 library(RColorBrewer)
 library(viridis)
 
-## now we can setup our main directory to save these results and log our note
-run_date <- make_time_stamp(TRUE)
-out.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', run_date)
-dir.create(out.dir)
-fileConn <- file(sprintf("%s/run_notes.txt", out.dir))
-writeLines(logging_note, fileConn)
-close(fileConn)
-
 ## Now we can switch to the TMB repo
 setwd(tmb_repo)
 if(pull_tmb_git) system(sprintf('cd %s\ngit pull %s %s', core_repo, remote, branch))
@@ -60,24 +55,47 @@ source('./realistic_sims/realistic_sim_utils.R')
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+## load in the loopvars from launch and setup all the params for this job
+out.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', run_date)
+loopvars <- readRDS(file = paste0(out.dir, '/loopvars.rds'))
+
+reg             <- loopvars[par.iter, 1]
+year_list       <- loopvars[par.iter, 2]
+cov_names       <- loopvars[par.iter, 3]
+cov_measures    <- loopvars[par.iter, 4]
+betas           <- loopvars[par.iter, 5]
+alpha           <- loopvars[par.iter, 6]
+sp.range        <- loopvars[par.iter, 7]
+sp.var          <- loopvars[par.iter, 8]
+sp.alpha        <- loopvars[par.iter, 9]
+nug.var         <- loopvars[par.iter, 10]
+t.rho           <- loopvars[par.iter, 11]
+mesh_s_max_edge <- loopvars[par.iter, 12]
+n.clust         <- loopvars[par.iter, 13]
+m.clust         <- loopvars[par.iter, 14]
+sample.strat    <- loopvars[par.iter, 15]
+cores           <- loopvars[par.iter, 16] 
+ndraws          <- loopvars[par.iter, 17]
+
+
+## and I hardcode a few other options that are useful sometimes when running interactively
+
 ## to make it easier to run real data from this code, usually have SIM=TRUE, REAL=FALSE
 use_real_data <- FALSE
 use_sim_data  <- TRUE
 
-## should we save this data to mbg input_data?
+## should we save this data to mbg input_data? useful if we want to run sim data through lbd_core
 save.as.input.data <- FALSE
 data.tag <- '_allyrs_nug'
-
 
 
 ##############################
 ## setup tunable parameters ##
 ##############################
 
-## TODO, set this up for qsub. i.e. use commandArgs()
 
 ## environment options
-ncores <- 2
+ncores <- 3
 
 ## pick a country (or region) using iso3 codes (or region names)
 reg       <- 'NGA'

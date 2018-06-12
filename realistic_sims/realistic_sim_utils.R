@@ -2,25 +2,10 @@
 ## written by a0z 5/17/18
 
 ## qsub_sim: function to launch sims (and sim comparisons) on the cluster
-qsub_sim <- function(reg,
-                     year_list,
-                     cov_names,
-                     cov_measures,
-                     betas,
-                     alpha,
-                     sp.range,
-                     sp.alpha,
-                     nug.var,
-                     t.rho,
-                     mesh_s_max_edge,
-                     n.clust,
-                     m.clust,
-                     sample.strat,
-                     cores, 
-                     ndraws,
-                     run_date,
-                     codepath, ## full path to code to run
-                     iter, ## if looping through muliple models, used to give different names
+qsub_sim <- function(iter, ## if looping through muliple models, used to give different names
+                     run_date, 
+                     codepath,
+                     slots, 
                      singularity = 'default',
                      singularity_opts = NULL,
                      logloc = NULL ## defaults to input/output dir in sim run_date dir
@@ -43,12 +28,13 @@ qsub_sim <- function(reg,
   shell <- '/share/code/geosptial/lbd_core/mbg_central/share_scripts/shell_sing.sh'
   sing_image <- get_singularity(image = singularity)
   if(is.null(singularity_opts)) singularity_opts <- list(SET_OMP_THREADS=1, SET_MKL_THREADS=1)
+  if(is.null(logloc)) logloc <- sprintf('/homes/azimmer/tmb_inla_sim/%s', run_date)
   
   ## Piece together lengthy `qsub` command
   qsub <- paste0("qsub",
                  " -e ", logloc, "/errors",
                  " -o ", logloc, "/output",
-                 " -pe multi_slot ", cores,
+                 " -pe multi_slot ", slots,
                  " -P ", proj, " ", node.flag)
 
   ## add on stuff to launch singularity
@@ -57,28 +43,13 @@ qsub_sim <- function(reg,
 
   ## append job name, shell, and code to run 
   qsub <- paste0(qsub,
-                 sprintf(" -N job_%s_iter_%i", reg, iter), ## job name
+                 sprintf(" -N sim_job_%i", iter), ## job name
                  " ", shell, " ", codepath) ## shell and code path
 
   ## add on all remaining arguments 
   qsub <- paste(qsub,
-                reg, ## commandArgs 4
-                year_list, ## commandArgs 5
-                cov_names,
-                cov_measures,
-                betas,
-                alpha,
-                sp.range, ## commandArgs 10
-                sp.alpha,
-                nug.var,
-                t.rho,
-                mesh_s_max_edge,
-                n.clust, ## commandArgs 15
-                m.clust,
-                sample.strat,
-                cores, 
-                ndraws,
-                run_date, ## commandArgs 20
+                iter, ## which row in loopvars
+                run_date, ## which dir to load from
                 sep = " ")
 
   return(qsub)
