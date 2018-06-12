@@ -1,14 +1,14 @@
 ## this script simulates some realistic datasets for comparison between INLA and TMB
 ## it leverages existing architecture that the LBD team at IHME has already created
 ## written by AOZ
-## last editted 5/14/18
+## last editted 6/05/18
 
 options(error = recover)
 
 ## DO THIS!
 ################################################################################
 ## ADD A NOTE! to help identify what you were doing with this run
-logging_note <- 'all africa simulation to push mem bounds. all africa, 17 years, 1e6 datapts total (58824/yr). in INLA'
+logging_note <- 'Simulating all years NGA data with nugget'
 ################################################################################
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -70,8 +70,8 @@ source('./realistic_sims/realistic_sim_utils.R')
 ncores <- 2
 
 ## pick a country (or region) using iso3 codes (or region names)
-reg       <- 'africa'
-year_list <- seq(2000, 2016, by = 1)
+reg       <- 'NGA'
+year_list <- 2010 ## seq(2000, 2015, by = 1)
 
 ## covariate options (need matching name and measure)
 covs <- data.table(name = c('access2', 'distrivers', 'evi'   , 'mapincidence'),
@@ -81,23 +81,23 @@ alpha <- 0 ## intercept
 
 
 ## gp options
-sp.range <- 10       ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
+sp.range <- sqrt(8)  ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
 sp.var   <- 0.5      ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
 sp.alpha <- 2.0      ## matern smoothness = sp.alpha - 1 (for R^2 domain)
-nug.var  <- .1 ^ 2   ## nugget variance
-t.rho    <- 0.9      ## annual temporal auto-corr
+nug.var  <- .1 ^ 2 ## nugget variance
+t.rho    <- 0.8      ## annual temporal auto-corr
 maxedge  <- 0.2      ## TODO this is not passed anywhere yet... should go to cutoff in mesh
 
 ## simulated data options
-n.clust <- 58824  ## clusters PER TIME slice
+n.clust <- 50  ## clusters PER TIME slice
 m.clust <- 35  ## mean number of obs per cluster (poisson)
 
 ## prediction options
 ndraws <- 250
 
 ## should we save this data to mbg input_data?
-save.as.input.data <- TRUE
-data.tag <- '_allafrica_1e6obs'
+save.as.input.data <- FALSE
+data.tag <- '_allyrs_nug'
 
 
 ## end of user inputs
@@ -177,13 +177,13 @@ true.rast <- sim.obj$true.rast
 
 ## save (if desired) this simulated dataset to .../mbg/input_data for mbg pipeline
 if(save.as.input.data){
-  df <- na.omit(data.table(longitude = dt$long,
+  df <- data.table(longitude = dt$long,
                    latitude = dt$lat,
                    year = dt$year,
                    country = reg,
                    N = dt$N,
                    simulation = dt$Y, 
-                   weight = 1))
+                   weight = 1)
   write.csv(file = sprintf('/share/geospatial/mbg/input_data/simulation%s.csv', data.tag),
             x = df)
 }
@@ -218,19 +218,8 @@ nperiods  <- length(unique(dt.pers))
 ## same mesh across time (TODO: only for now)
 mesh_s <- inla.mesh.2d(,
                        inla.sp2segment(simple_polygon)$loc,
-                       max.edge=c(0.2,5),
+                       max.edge=c(1,5),
                        cutoff=0.2)
-
-## Build spatial mesh over modeling area
-mesh_s_max_edge <- "c(0.2,5)"
-mesh_s_offset <- "c(1,5)"
-mesh_s <- build_space_mesh(d           = dt,
-                           simple      = simple_polygon,
-                           max_edge    = mesh_s_max_edge,
-                           mesh_offset = mesh_s_offset)
-
-
-
 pdf(sprintf('%s/modeling/inputs/mesh.pdf', out.dir))
 plot(mesh_s)
 plot(covs.gp[[1]], add = TRUE) ## just to show loc of simple_raster under mesh for scale
