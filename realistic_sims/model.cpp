@@ -85,7 +85,7 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(alpha_j); // fixed effect coefs, including intercept as first index
   PARAMETER(logtau);         // log of INLA tau param (precision of space-time covariance mat)
   PARAMETER(logkappa);       // log of INLA kappa - related to spatial correlation and range
-  PARAMETER(trho);           // temporal autocorrelation parameter for AR1, natural scale
+  //PARAMETER(trho);           // temporal autocorrelation parameter for AR1, natural scale
   PARAMETER(zrho);           // Z autocorrelation parameter for AR1, natural scale
 
   // Random effects
@@ -114,7 +114,7 @@ Type objective_function<Type>::operator() ()
   // Make transformations of some of our parameters
   Type range     = sqrt(8.0) / exp(logkappa);
   Type sigma     = 1.0 / sqrt(4.0 * 3.14159265359 * exp(2.0 * logtau) * exp(2.0 * logkappa));
-  Type trho_trans = log((1.0 + trho) / (1.0 - trho));
+  //Type trho_trans = log((1.0 + trho) / (1.0 - trho));
   Type zrho_trans = log((1.0 + zrho) / (1.0 - zrho));
 
   // Define objects for derived values
