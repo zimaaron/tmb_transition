@@ -162,7 +162,7 @@ Type objective_function<Type>::operator() ()
       } else {
         for(int z = 0; z < num_z; z++){
           // TODO check indexing on this one
-          epsilon_stz[(s + num_s * t + num_t * z)] = Epsilon_stz(s,t,z);
+          epsilon_stz[(s + num_s * t + num_s * num_t * z)] = Epsilon_stz(s,t,z);
         }
       }
     }

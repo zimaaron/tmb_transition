@@ -3,7 +3,7 @@
 ## written by AOZ
 ## last editted 5/14/18
 
-options(error = recover)
+## options(error = recover)
 
 ## DO THIS!
 ################################################################################
@@ -15,8 +15,8 @@ logging_note <- 'Running these models with real HIV SSSA data. using weights'
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-par.iter <- as.numeric(  commandArgs()[4]) ## all we need is to grab the (parallel) iteration of this run
-run_date <- as.character(commandArgs()[5]) ## and the run_date so we know where to load from
+par.iter <- 1  ## as.numeric(  commandArgs()[4]) ## all we need is to grab the (parallel) iteration of this run
+run_date <- "2018_06_12_15_54_38" ## as.character(commandArgs()[5]) ## and the run_date so we know where to load from
 
 #############################################
 ## setup the environment for singularity R ##
@@ -55,28 +55,31 @@ source('./realistic_sims/realistic_sim_utils.R')
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-## load in the loopvars from launch and setup all the params for this job
+############################################################################
+## load in the loopvars from launch and setup all the params for this job ##
+############################################################################
 out.dir  <- sprintf('/homes/azimmer/tmb_inla_sim/%s', run_date)
 loopvars <- readRDS(file = paste0(out.dir, '/loopvars.rds'))
 
-reg             <- loopvars[par.iter, 1]
-year_list       <- loopvars[par.iter, 2]
-cov_names       <- loopvars[par.iter, 3]
-cov_measures    <- loopvars[par.iter, 4]
-betas           <- loopvars[par.iter, 5]
-alpha           <- loopvars[par.iter, 6]
-sp.range        <- loopvars[par.iter, 7]
-sp.var          <- loopvars[par.iter, 8]
-sp.alpha        <- loopvars[par.iter, 9]
-nug.var         <- loopvars[par.iter, 10]
-t.rho           <- loopvars[par.iter, 11]
-mesh_s_max_edge <- loopvars[par.iter, 12]
-n.clust         <- loopvars[par.iter, 13]
-m.clust         <- loopvars[par.iter, 14]
-sample.strat    <- loopvars[par.iter, 15]
-cores           <- loopvars[par.iter, 16] 
-ndraws          <- loopvars[par.iter, 17]
+reg             <- as.character(loopvars[par.iter, 1])
+year_list       <- eval(parse(text = loopvars[par.iter, 2]))
+cov_names       <- eval(parse(text = as.character(loopvars[par.iter, 3])))
+cov_measures    <- eval(parse(text = as.character(loopvars[par.iter, 4])))
+betas           <- eval(parse(text = as.character(loopvars[par.iter, 5])))
+alpha           <- as.numeric(loopvars[par.iter, 6])
+sp.range        <- as.numeric(loopvars[par.iter, 7])
+sp.var          <- as.numeric(loopvars[par.iter, 8])
+sp.alpha        <- as.numeric(loopvars[par.iter, 9])
+nug.var         <- as.numeric(loopvars[par.iter, 10])
+t.rho           <- as.numeric(loopvars[par.iter, 11])
+mesh_s_max_edge <- as.character(loopvars[par.iter, 12])
+n.clust         <- as.numeric(loopvars[par.iter, 13])
+m.clust         <- as.numeric(loopvars[par.iter, 14])
+sample.strat    <- as.character(loopvars[par.iter, 15])
+cores           <- as.numeric(loopvars[par.iter, 16]) 
+ndraws          <- as.numeric(loopvars[par.iter, 17])
 
+## TODO? add in some validation options?
 
 ## and I hardcode a few other options that are useful sometimes when running interactively
 
@@ -88,44 +91,8 @@ use_sim_data  <- TRUE
 save.as.input.data <- FALSE
 data.tag <- '_allyrs_nug'
 
-
-##############################
-## setup tunable parameters ##
-##############################
-
-
-## environment options
+## for use in INLA
 ncores <- 3
-
-## pick a country (or region) using iso3 codes (or region names)
-reg       <- 'NGA'
-year_list <- seq(2000, 2015, by = 1)
-
-## covariate options (need matching name and measure)
-covs <- data.table(name = c('access2', 'distrivers', 'evi'   , 'mapincidence'),
-                   meas = c('mean'   , 'mean'      , 'median', 'mean'))
-betas <- c(.5, -1, 1, -.5)
-alpha <- 0 ## intercept
-
-
-## gp options
-sp.range <- sqrt(8)  ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
-sp.var   <- 0.5      ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
-sp.alpha <- 2.0      ## matern smoothness = sp.alpha - 1 (for R^2 domain)
-nug.var  <- .5 ^ 2 ## nugget variance
-t.rho    <- 0.8      ## annual temporal auto-corr
-mesh_s_max_edge <- "c(0.2,5)"
-mesh_s_offset <- "c(1,5)"
-
-
-## simulated data options
-n.clust <- 50  ## clusters PER TIME slice
-m.clust <- 35  ## mean number of obs per cluster (poisson)
-
-## prediction options
-ndraws <- 250
-
-
 
 ## end of user inputs
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -135,8 +102,6 @@ ndraws <- 250
 ## convert sp.range and sp.var into sp.kappa for rspde function
 sp.kappa <- sqrt(8) / sp.range
 
-
-## validation options
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -293,10 +258,13 @@ if(use_real_data){
 ## SETUP SOME SHARED OBJECTS ##
 ###############################
 
-## set some stuff up
+## ~~~
+## required for model fit
+## ~~~
+
 dt[, id := 1:.N]
 dt[, period_id := as.numeric(as.factor(dt[, year]))]
-dt.coords <- cbind(dt$long,dt$lat)
+dt.coords <- cbind(dt$long, dt$lat)
 dt.pers   <- dt[, period_id]
 nperiods  <- length(year_list)
 
@@ -304,7 +272,7 @@ nperiods  <- length(year_list)
 mesh_s <- build_space_mesh(d           = dt,
                            simple      = simple_polygon,
                            max_edge    = mesh_s_max_edge,
-                           mesh_offset = mesh_s_offset)
+                           mesh_offset = "c(1, 5)")
 
 pdf(sprintf('%s/modeling/inputs/mesh.pdf', out.dir))
 plot(mesh_s)
@@ -330,6 +298,60 @@ A.proj <- inla.spde.make.A(mesh  = mesh_s,
 saveRDS(file = sprintf('%s/modeling/inputs/mesh.rds', out.dir), mesh_s)
 saveRDS(file = sprintf('%s/modeling/inputs/spde.rds', out.dir), spde)
 
+## ~~~
+## required for predict
+## ~~~
+
+## pull out covariates in format we expect them
+## a list of length periods with a brick of named covariates inside
+cov_list <- covs.gp
+cov_list$gp <- NULL
+new_cl <- list()
+for(p in 1:nperiods){
+  new_cl[[p]] <- list()
+  for(n in names(cov_list)){
+    if(dim(cov_list[[n]])[3] == 1){
+      new_cl[[p]][[n]] <- cov_list[[n]]
+    }else{
+      new_cl[[p]][[n]] <- cov_list[[n]][[p]]
+    }
+  }
+  new_cl[[p]] <- brick(new_cl[[p]])
+}
+
+
+## get space-time-locs grid to predict onto
+f_orig <- data.table(cbind(coordinates(simple_raster), t=1))
+# add time periods
+fullsamplespace <- copy(f_orig)
+if(nperiods > 1){
+  for(p in 2:nperiods){
+    tmp <- f_orig
+    tmp[,t := p]
+    fullsamplespace <- rbind(fullsamplespace,tmp)
+  }
+}
+
+
+## get surface to project on to
+pcoords <- cbind(x=fullsamplespace$x, y=fullsamplespace$y)
+groups_periods <- fullsamplespace$t
+
+## use inla helper functions to project the spatial effect.
+A.pred <- inla.spde.make.A(
+    mesh = mesh_s,
+    loc = pcoords,
+    group = groups_periods)
+
+## extract cell values  from covariates, deal with timevarying covariates here
+cov_vals <- list()
+for(p in 1:nperiods){
+  message(p)
+  cov_vals[[p]] <- raster::extract(new_cl[[p]], pcoords[1:(nrow(fullsamplespace)/nperiods),])
+  cov_vals[[p]] <- (cbind(int = 1, cov_vals[[p]]))
+}
+
+
 #########
 #########
 ## TMB ##
@@ -351,7 +373,6 @@ Data = list(num_i=nrow(dt),                 ## Total number of observations
             y_i=dt[, Y], ##                 ## Number of observed deaths in the cluster (N+ in binomial likelihood)
             n_i=dt[, N], ##                 ## Number of observed exposures in the cluster (N in binomial likelihood)
             t_i=as.numeric(as.factor(dt[, year]))-1, ## Sample period of ( starting at zero )
-            w_i=rep(1,nrow(dt)),
             w_i = dt[, weight], 
             X_ij=X_xp,                      ## Covariate design matrix
             M0=spde$param.inla$M0,          ## SPDE sparse matrix
@@ -365,9 +386,9 @@ Data = list(num_i=nrow(dt),                 ## Total number of observations
 Parameters = list(alpha_j   =  rep(0,ncol(X_xp)),                 ## FE parameters alphas
                   logtau=1.0,                                     ## log inverse of tau  (Epsilon)
                   logkappa=0.0,	                                  ## Matern Range parameter
-                  trho=0.5,
+                  ## trho=0.5,
                   zrho=0.5,
-                  Epsilon_stz=matrix(1, nrow=mesh_s$n, ncol=nperiods))     ## GP locations
+                  Epsilon_stz=matrix(1, nrow=mesh_s$n, ncol=nperiods))     ## GP locationsw
 
 
 #########
@@ -404,55 +425,6 @@ tmb_sdreport_time <-  tmb_total_fit_time - fit_time_tmb
 #############
 
 message('making predictions')
-
-
-## pull out covariates in format we expect them
-## a list of length periods with a brick of named covariates inside
-cov_list <- covs.gp
-cov_list$gp <- NULL
-new_cl <- list()
-for(p in 1:nperiods){
-  new_cl[[p]] <- list()
-  for(n in names(cov_list)){
-    if(dim(cov_list[[n]])[3] == 1){
-      new_cl[[p]][[n]] <- cov_list[[n]]
-    }else{
-      new_cl[[p]][[n]] <- cov_list[[n]][[p]]
-    }
-  }
-  new_cl[[p]] <- brick(new_cl[[p]])
-}
-
-
-## get space-time-locs grid to predict onto
-f_orig <- data.table(cbind(coordinates(simple_raster), t=1))
-# add time periods
-fullsamplespace <- copy(f_orig)
-for(p in 2:nperiods){
-  tmp <- f_orig
-  tmp[,t := p]
-  fullsamplespace <- rbind(fullsamplespace,tmp)
-}
-
-
-## get surface to project on to
-pcoords <- cbind(x=fullsamplespace$x, y=fullsamplespace$y)
-groups_periods <- fullsamplespace$t
-
-## use inla helper functions to project the spatial effect.
-A.pred <- inla.spde.make.A(
-    mesh = mesh_s,
-    loc = pcoords,
-    group = groups_periods)
-
-## extract cell values  from covariates, deal with timevarying covariates here
-cov_vals <- list()
-for(p in 1:nperiods){
-  message(p)
-  cov_vals[[p]] <- raster::extract(new_cl[[p]], pcoords[1:(nrow(fullsamplespace)/nperiods),])
-  cov_vals[[p]] <- (cbind(int = 1, cov_vals[[p]]))
-}
-
 
 ## now we can take draws and project to space-time raster locs
 mu <- c(SD0$par.fixed,SD0$par.random)
@@ -527,7 +499,7 @@ space   <- inla.spde.make.index("space",
                                 n.group = nperiods)
 
 inla.covs <- covs$name
-design_matrix <- data.frame(int = rep(1, nrow(dt)))#, dt[, inla.covs, with=F])
+design_matrix <- data.frame(int = rep(1, nrow(dt)), dt[, inla.covs, with=F])
 stack.obs <- inla.stack(tag='est',
                         data=list(Y=dt$Y), ## response
                         A=list(A,1), ## proj matrix, not sure what the 1 is for
@@ -680,7 +652,7 @@ grid.table(rr)
 plot.in.logit.space <- FALSE
 
 for(thing in c('median','stdev')){
-    layout(matrix(1:24, 4, 6, byrow = TRUE))
+    layout(matrix(1:20, 4, 5, byrow = TRUE))
     samp=sample(cellIdx(ras_med_inla[[1]]),1e4)
     for(i in 1:4){
 
@@ -698,8 +670,8 @@ for(thing in c('median','stdev')){
           rtmb  <-  ras_sdv_tmb[[i]]
         }
 
-        true <- true.rast[[i]] ## in logit space
-        values(true) <- plogis(values(true))
+##        true <- true.rast[[i]] ## in logit space
+##        values(true) <- plogis(values(true))
       }
 
       
@@ -709,9 +681,12 @@ for(thing in c('median','stdev')){
       par(mar = c(0, 0, 1.4, 1),bty='n')
       maxes <- max(c(as.vector(rtmb),as.vector(rinla)),na.rm=TRUE)
       plot(rinla-rtmb, maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend=T, main=paste0('DIFFERENCE ',thing))
+      plot(simple_polygon, add = T)
       plot(rtmb,  maxpixel=1e7, col=rainbow(100), axes=FALSE, legend.args=list(text='', side=2, font=1, line=0, cex=0.1), main='TMB',zlim=c(0,maxes))
+      plot(simple_polygon, add = T)
       plot(rinla, maxpixel=1e7, col=rainbow(100), axes=FALSE, legend=FALSE, main='R-INLA',zlim=c(0,maxes))
-      plot(true, maxpixel=1e7, col=rainbow(100), axes=FALSE, legend=FALSE, main='TRUE (mean)',zlim=c(0,maxes))
+      plot(simple_polygon, add = T)
+##      plot(true, maxpixel=1e7, col=rainbow(100), axes=FALSE, legend=FALSE, main='TRUE (mean)',zlim=c(0,maxes))
       
       # scatter
       par(mar = c(4, 4, 2, 2),bty='n')
