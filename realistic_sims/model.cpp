@@ -128,7 +128,7 @@ Type objective_function<Type>::operator() ()
    PARALLEL_REGION jnll -= dnorm(logtau,    Type(0.0), Type(1.0),   true);  // N(0,1) prior for logtau
    PARALLEL_REGION jnll -= dnorm(logkappa,  Type(0.0), Type(1.0),   true);  // N(0,1) prior for logkappa
    if(num_t > 1) {
-     PARALLEL_REGION jnll -= dnorm(trho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
+     // PARALLEL_REGION jnll -= dnorm(trho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
    }
    if(num_z > 1) {
      PARALLEL_REGION jnll -= dnorm(zrho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
@@ -145,13 +145,13 @@ Type objective_function<Type>::operator() ()
     PARALLEL_REGION jnll += GMRF(Q_ss,false)(epsilon_stz);
   } else if(num_t > 1 & num_z == 1) {
     printf("GP FOR SPACE-TIME \n");
-    PARALLEL_REGION jnll += SEPARABLE(AR1(trho),GMRF(Q_ss,false))(Epsilon_stz);
+    // PARALLEL_REGION jnll += SEPARABLE(AR1(trho),GMRF(Q_ss,false))(Epsilon_stz);
   } else if (num_t == 1 & num_z > 1) {
     printf("GP FOR SPACE-Z \n");
     PARALLEL_REGION jnll += SEPARABLE(AR1(zrho),GMRF(Q_ss,false))(Epsilon_stz);
   } else if (num_t > 1 & num_z > 1) {
     printf("GP FOR SPACE-TIME-Z \n");
-    PARALLEL_REGION jnll += SEPARABLE(AR1(zrho),SEPARABLE(AR1(trho),GMRF(Q_ss,false)))(Epsilon_stz);
+    // PARALLEL_REGION jnll += SEPARABLE(AR1(zrho),SEPARABLE(AR1(trho),GMRF(Q_ss,false)))(Epsilon_stz);
   }
 
   // Transform GMRFs and make vector form
