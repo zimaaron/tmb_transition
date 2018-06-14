@@ -155,6 +155,7 @@ Type objective_function<Type>::operator() ()
   }
 
   // Transform GMRFs and make vector form
+  printf("unlisting epsilon_stz");
   for(int s = 0; s < num_s; s++){
     for(int t = 0; t < num_t; t++){
       if(num_z == 1) {
@@ -170,15 +171,19 @@ Type objective_function<Type>::operator() ()
 
   // Project from mesh points to data points in order to eval likelihood at each data point
   // TODO expand this for Z
+  printf("projecting epsilon");
   projepsilon_i = Aproj * epsilon_stz.matrix();
 
   // evaluate fixed effects for alpha_j values
+  printf("calculating fixed effects contrib to each datapt");
   fe_i = X_ij * alpha_j.matrix();
 
   // Return un-normalized density on request
+  printf("checking flag value");
   if (flag == 0) return jnll;
 
   // Likelihood contribution from each datapoint i
+  printf("calculating loglik contrib from data");
   for (int i = 0; i < num_i; i++){
     prob_i(i) = fe_i(i) + projepsilon_i(i);
     if(!isNA(y_i(i))){
@@ -187,6 +192,7 @@ Type objective_function<Type>::operator() ()
   }
 
   // Report estimates
+  printf("adreport");
   if(options[1] == 0){
     ADREPORT(alpha_j);
     ADREPORT(Epsilon_stz);
