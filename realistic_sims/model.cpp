@@ -182,7 +182,14 @@ Type objective_function<Type>::operator() ()
   fe_i = X_ij * alpha_j.matrix();
 
   // Return un-normalized density on request
-  if (flag == 1) return jnll;
+  if (flag == 1){
+    // to help with debug, print each loglik component
+    printf("jnll of priors: %f\n", asDouble(jnll_comp(0)));
+    printf("jnll of gmrf:   %f\n", asDouble(jnll_comp(1)));
+    printf("jnll of data:   %f\n", asDouble(jnll_comp(2)));
+    Type jnll = jnll_comp.sum();
+    return jnll;
+  }
 
   // Likelihood contribution from each datapoint i
   for (int i = 0; i < num_i; i++){
