@@ -183,8 +183,8 @@ Type objective_function<Type>::operator() ()
   fe_i = X_ij * alpha_j.matrix();
 
   // Return un-normalized density on request
-  printf("checking flag value");
-  if (flag == 0) return jnll;
+  //printf("checking flag value");
+  //if (flag == 0) return jnll;
 
   // Likelihood contribution from each datapoint i
   printf("calculating loglik contrib from data");
