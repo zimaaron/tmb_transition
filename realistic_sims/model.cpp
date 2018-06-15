@@ -79,7 +79,6 @@ Type objective_function<Type>::operator() ()
   DATA_VECTOR(options)       // boolean vector of options to be used to select different models/modelling options:
                              // 0: Include priors. All are default settings right now
                              // 1: If 0, ADREPORT is on. Used for testing for now
-                             // 2:
 
   // Parameters
   PARAMETER_VECTOR(alpha_j); // fixed effect coefs, including intercept as first index
@@ -134,7 +133,7 @@ Type objective_function<Type>::operator() ()
      PARALLEL_REGION jnll -= dnorm(zrho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
    }
    for( int j = 0; j < alpha_j.size(); j++){
-     PARALLEL_REGION jnll -= dnorm(alpha_j(j), Type(0.0), Type(100), true); // N(0, sqrt(1/.001)) prior for fixed effects.
+     PARALLEL_REGION jnll -= dnorm(alpha_j(j), Type(0.0), Type(3.0), true); // N(0, sqrt(1/.001)) prior for fixed effects.
    }
   }
 
@@ -158,7 +157,7 @@ Type objective_function<Type>::operator() ()
   printf("unlisting epsilon_stz");
   for(int s = 0; s < num_s; s++){
     if(num_t == 1){
-      epsilon_stz[(s)] = Epsilon_stz(s);
+      epsilon_stz[s] = Epsilon_stz(s);
     } else{
       for(int t = 0; t < num_t; t++){
 	if(num_z == 1) {
@@ -175,19 +174,15 @@ Type objective_function<Type>::operator() ()
 
   // Project from mesh points to data points in order to eval likelihood at each data point
   // TODO expand this for Z
-  printf("projecting epsilon");
   projepsilon_i = Aproj * epsilon_stz.matrix();
 
   // evaluate fixed effects for alpha_j values
-  printf("calculating fixed effects contrib to each datapt");
   fe_i = X_ij * alpha_j.matrix();
 
   // Return un-normalized density on request
-  printf("checking flag value");
-  if (flag == 0) return jnll;
+  if (flag == 1) return jnll;
 
   // Likelihood contribution from each datapoint i
-  printf("calculating loglik contrib from data");
   for (int i = 0; i < num_i; i++){
     prob_i(i) = fe_i(i) + projepsilon_i(i);
     if(!isNA(y_i(i))){
