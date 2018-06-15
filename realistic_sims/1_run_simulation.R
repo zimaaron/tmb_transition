@@ -79,6 +79,8 @@ sample.strat    <- as.character(loopvars[par.iter, 15])
 cores           <- as.numeric(loopvars[par.iter, 16]) 
 ndraws          <- as.numeric(loopvars[par.iter, 17])
 
+covs <- data.table(name = cov_names, meas = cov_measures)
+
 ## TODO? add in some validation options?
 
 ## and I hardcode a few other options that are useful sometimes when running interactively
@@ -129,7 +131,7 @@ pop_raster         <- raster_list[['pop_raster']]
 
 ## make an object with true param values
 true.params <- data.table(param = c('int',
-                                    paste0(covs$name),
+                                    cov_names,
                                     'nom. range',
                                     'nom. var',
                                     'time rho'
@@ -346,7 +348,6 @@ A.pred <- inla.spde.make.A(
 ## extract cell values  from covariates, deal with timevarying covariates here
 cov_vals <- list()
 for(p in 1:nperiods){
-  message(p)
   cov_vals[[p]] <- raster::extract(new_cl[[p]], pcoords[1:(nrow(fullsamplespace)/nperiods),])
   cov_vals[[p]] <- (cbind(int = 1, cov_vals[[p]]))
 }
@@ -357,6 +358,37 @@ for(p in 1:nperiods){
 ## TMB ##
 #########
 #########
+
+## TODO: temporary data and params - for SPACE ONLY DEBUG
+
+if(use_sim_data) X_xp = as.matrix(cbind(1, dt[,covs[, name], with=FALSE]))
+if(use_real_data) X_xp = as.matrix(rep(1, nrow(dt)), ncol = 1, nrow = nrow(dt))
+
+
+Data = list(num_i=nrow(dt),                 ## Total number of observations
+            num_s=mesh_s$n,                 ## Number of vertices in SPDE mesh
+            #num_t=nperiods,                 ## Number of periods
+            #num_z=1,
+            y_i=dt[, Y], ##                 ## Number of observed deaths in the cluster (N+ in binomial likelihood)
+            n_i=dt[, N], ##                 ## Number of observed exposures in the cluster (N in binomial likelihood)
+            #t_i=as.numeric(as.factor(dt[, year]))-1, ## Sample period of ( starting at zero )
+            #w_i = dt[, weight], 
+            X_ij=X_xp,                      ## Covariate design matrix
+            M0=spde$param.inla$M0,          ## SPDE sparse matrix
+            M1=spde$param.inla$M1,          ## SPDE sparse matrix
+            M2=spde$param.inla$M2,          ## SPDE sparse matrix
+            Aproj = A.proj,                 ## mesh to prediction point projection matrix
+            flag = 1, ##                    ## do normalization outside of optimization
+            options = c(1, 1))              ## option1==1 use priors
+
+## staring values for parameters
+Parameters = list(alpha_j   =  rep(0,ncol(X_xp)),                 ## FE parameters alphas
+                  logtau=.5,                                     ## log inverse of tau  (Epsilon)
+                  logkappa=.5,	                                  ## Matern Range parameter
+             #     trho=0.5,
+             #     zrho=0.5,
+                  Epsilon_stz=array(0, dim = c(mesh_s$n, ncol=nperiods)))     ## GP locations
+
 
 ###########
 ## SETUP ##
@@ -380,15 +412,15 @@ Data = list(num_i=nrow(dt),                 ## Total number of observations
             M2=spde$param.inla$M2,          ## SPDE sparse matrix
             Aproj = A.proj,                 ## mesh to prediction point projection matrix
             flag = 1, ##                    ## do normalization outside of optimization
-            options = c(1, 1))              ## option1==1 use priors
+            options = c(1, 0))              ## option1==1 use priors, 2 use adreprt
 
 ## staring values for parameters
 Parameters = list(alpha_j   =  rep(0,ncol(X_xp)),                 ## FE parameters alphas
                   logtau=1.0,                                     ## log inverse of tau  (Epsilon)
                   logkappa=0.0,	                                  ## Matern Range parameter
-                  ## trho=0.5,
+                  trho=0.5,
                   zrho=0.5,
-                  Epsilon_stz=matrix(1, nrow=mesh_s$n, ncol=nperiods))     ## GP locationsw
+                  Epsilon_stz=array(0, dim = c(mesh_s$n, ncol=nperiods)))     ## GP locations
 
 
 #########
@@ -396,14 +428,17 @@ Parameters = list(alpha_j   =  rep(0,ncol(X_xp)),                 ## FE paramete
 #########
 
 templ <- "model"
-setwd('./realistic_sims/')
+setwd("/homes/azimmer/tmb_transition/realistic_sims")
 TMB::compile(paste0('./', templ,".cpp"))
 dyn.load( dynlib(templ) )
 
 ## TODO: could also do a simple run to start to get better starting params
 ## Report0 = obj$report() 
 
-obj <- MakeADFun(data=Data, parameters=Parameters,  map=list(zrho=factor(NA)), random="Epsilon_stz", hessian=TRUE, DLL=templ)
+obj <- MakeADFun(data=Data, parameters=Parameters, map=list(zrho = factor(NA),
+                                                            trho = factor(NA)),
+                 random="Epsilon_stz", hessian=TRUE, DLL=templ)
+obj <- MakeADFun(data=Data, parameters=Parameters, random="Epsilon_stz", hessian=TRUE, DLL=templ)
 obj <- normalize(obj, flag="flag")
 
 

@@ -184,10 +184,12 @@ Type objective_function<Type>::operator() ()
   // Return un-normalized density on request
   if (flag == 1){
     // to help with debug, print each loglik component
+    printf("Returning before data likelihood b/c flag == 1\n")
     printf("jnll of priors: %f\n", asDouble(jnll_comp(0)));
     printf("jnll of gmrf:   %f\n", asDouble(jnll_comp(1)));
     printf("jnll of data:   %f\n", asDouble(jnll_comp(2)));
     Type jnll = jnll_comp.sum();
+    printf("Combined jnll is: %f\n", asDouble(jnll);
     return jnll;
   }
 
@@ -208,6 +210,8 @@ Type objective_function<Type>::operator() ()
   
   // sum logliks
   Type jnll = jnll_comp.sum();
+  printf("Combined jnll is: %f\n", asDouble(jnll);
+
 
 
   // Report estimates if desired
