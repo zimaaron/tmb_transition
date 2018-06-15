@@ -119,7 +119,7 @@ Type objective_function<Type>::operator() ()
 
   // Define objects for derived values
   vector<Type> fe_i(num_i);                         // main effect X_ij %*% t(alpha_j)
-  vector<Type> epsilon_stz(num_s)// * num_t * num_z);  // Epsilon_stz unlisted into a vector for easier matrix multiplication
+  vector<Type> epsilon_stz(num_s);// * num_t * num_z);  // Epsilon_stz unlisted into a vector for easier matrix multiplication
   vector<Type> projepsilon_i(num_i);                // value of gmrf at data points
   vector<Type> prob_i(num_i);                       // Logit estimated prob for each point i
 
