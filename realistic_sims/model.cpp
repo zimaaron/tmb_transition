@@ -79,6 +79,7 @@ Type objective_function<Type>::operator() ()
   DATA_VECTOR(options)       // boolean vector of options to be used to select different models/modelling options:
                              // 0: Include priors. All are default settings right now
                              // 1: If 0, ADREPORT is on. Used for testing for now
+                             // 2:
 
   // Parameters
   PARAMETER_VECTOR(alpha_j); // fixed effect coefs, including intercept as first index
@@ -99,15 +100,12 @@ Type objective_function<Type>::operator() ()
   // Define the joint-negative log-likelihood as a parallel_accumulator
   // this allows us to add or subtract numbers to the object in parallel
   // parallel_accumulator<Type> jnll(this);
-  vector<Type> jnll_comp(3);
-  jnll_comp[0] = Type(0); // priors contribution
-  jnll_comp[1] = Type(0); // latent field contrib
-  jnll_comp[2] = Type(0); // data contrib
+  Type jnll = 0;
 
   // print parallel info
   // max_parallel_regions = omp_get_max_threads();
   // printf("This is thread %d\n", max_parallel_regions);
-  max_parallel_regions = 1;
+  max_parallel_regions = 5;
 
   // Make spatial precision matrix
   SparseMatrix<Type> Q_ss = spde_Q(logkappa, logtau, M0, M1, M2);
@@ -127,16 +125,16 @@ Type objective_function<Type>::operator() ()
 
   // Prior contribution to likelihood. Values are defaulted (for now). Only run if options[0]==1
   if(options[0] == 1) {
-   PARALLEL_REGION jnll_comp[0] -= dnorm(logtau,    Type(0.0), Type(1.0),   true);  // N(0,1) prior for logtau
-   PARALLEL_REGION jnll_comp[0] -= dnorm(logkappa,  Type(0.0), Type(1.0),   true);  // N(0,1) prior for logkappa
+   PARALLEL_REGION jnll -= dnorm(logtau,    Type(0.0), Type(1.0),   true);  // N(0,1) prior for logtau
+   PARALLEL_REGION jnll -= dnorm(logkappa,  Type(0.0), Type(1.0),   true);  // N(0,1) prior for logkappa
    if(num_t > 1) {
-     PARALLEL_REGION jnll_comp[0] -= dnorm(trho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
+     PARALLEL_REGION jnll -= dnorm(trho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
    }
    if(num_z > 1) {
-     PARALLEL_REGION jnll_comp[0] -= dnorm(zrho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
+     PARALLEL_REGION jnll -= dnorm(zrho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
    }
    for( int j = 0; j < alpha_j.size(); j++){
-     PARALLEL_REGION jnll_comp[0] -= dnorm(alpha_j(j), Type(0.0), Type(3.0), true); // N(0, sqrt(1/.001)) prior for fixed effects.
+     PARALLEL_REGION jnll -= dnorm(alpha_j(j), Type(0.0), Type(100), true); // N(0, sqrt(1/.001)) prior for fixed effects.
    }
   }
 
@@ -144,32 +142,28 @@ Type objective_function<Type>::operator() ()
   // Possibilities of Kronecker include: S, ST, SZ, and STZ
   if (num_t == 1 & num_z == 1)  {
     printf("GP FOR SPACE  ONLY \n");
-    PARALLEL_REGION jnll_comp[1] += GMRF(Q_ss, false)(epsilon_stz);
+    PARALLEL_REGION jnll += GMRF(Q_ss,false)(epsilon_stz);
   } else if(num_t > 1 & num_z == 1) {
     printf("GP FOR SPACE-TIME \n");
-    PARALLEL_REGION jnll_comp[1] += SEPARABLE(AR1(trho),GMRF(Q_ss, false))(Epsilon_stz);
+    PARALLEL_REGION jnll += SEPARABLE(AR1(trho),GMRF(Q_ss,false))(Epsilon_stz);
   } else if (num_t == 1 & num_z > 1) {
     printf("GP FOR SPACE-Z \n");
-    PARALLEL_REGION jnll_comp[1] += SEPARABLE(AR1(zrho),GMRF(Q_ss, false))(Epsilon_stz);
+    PARALLEL_REGION jnll += SEPARABLE(AR1(zrho),GMRF(Q_ss,false))(Epsilon_stz);
   } else if (num_t > 1 & num_z > 1) {
     printf("GP FOR SPACE-TIME-Z \n");
-    PARALLEL_REGION jnll_comp[1] += SEPARABLE(AR1(zrho),SEPARABLE(AR1(trho),GMRF(Q_ss, false)))(Epsilon_stz);
+    PARALLEL_REGION jnll += SEPARABLE(AR1(zrho),SEPARABLE(AR1(trho),GMRF(Q_ss,false)))(Epsilon_stz);
   }
 
   // Transform GMRFs and make vector form
-  for(int s = 0; s < num_s; s++){ // space
-    if(num_t == 1){
-      epsilon_stz[s] = Epsilon_stz(s);
-    } else{
-      for(int t = 0; t < num_t; t++){ // space-time
-	if(num_z == 1) {
-	  epsilon_stz[(s + num_s * t )] = Epsilon_stz(s,t);
-	} else {
-	  for(int z = 0; z < num_z; z++){ // space-time-age
-	    // TODO check indexing on this one
-	    epsilon_stz[(s + num_s * t + num_s * num_t * z)] = Epsilon_stz(s,t,z);
-	  }
-	}
+  for(int s = 0; s < num_s; s++){
+    for(int t = 0; t < num_t; t++){
+      if(num_z == 1) {
+        epsilon_stz[(s + num_s * t )] = Epsilon_stz(s,t);
+      } else {
+        for(int z = 0; z < num_z; z++){
+          // TODO check indexing on this one
+          epsilon_stz[(s + num_s * t + num_t * z)] = Epsilon_stz(s,t,z);
+        }
       }
     }
   }
@@ -182,45 +176,21 @@ Type objective_function<Type>::operator() ()
   fe_i = X_ij * alpha_j.matrix();
 
   // Return un-normalized density on request
-  if (flag == 1){
-    // to help with debug, print each loglik component
-    printf("Returning before data likelihood b/c flag == 1\n");
-    printf("jnll of priors: %f\n", asDouble(jnll_comp(0)));
-    printf("jnll of gmrf:   %f\n", asDouble(jnll_comp(1)));
-    printf("jnll of data:   %f\n", asDouble(jnll_comp(2)));
-    Type jnll = jnll_comp.sum();
-    printf("Combined jnll is: %f\n", asDouble(jnll));
-    return jnll;
-  }
+  if (flag == 0) return jnll;
 
   // Likelihood contribution from each datapoint i
   for (int i = 0; i < num_i; i++){
     prob_i(i) = fe_i(i) + projepsilon_i(i);
     if(!isNA(y_i(i))){
-      PARALLEL_REGION jnll_comp[2] -= dbinom( y_i(i), n_i(i), invlogit(prob_i(i)), true ) * w_i(i);
+      PARALLEL_REGION jnll -= dbinom( y_i(i), n_i(i), invlogit(prob_i(i)), true ) * w_i(i);
     }
   }
 
-
-  // to help with debug, print each loglik component
-  printf("jnll of priors: %f\n", asDouble(jnll_comp(0)));
-  printf("jnll of gmrf:   %f\n", asDouble(jnll_comp(1)));
-  printf("jnll of data:   %f\n", asDouble(jnll_comp(2)));
-
-  
-  // sum logliks
-  Type jnll = jnll_comp.sum();
-  printf("Combined jnll is: %f\n", asDouble(jnll));
-
-
-
-  // Report estimates if desired
-  printf("adreport");
+  // Report estimates
   if(options[1] == 0){
     ADREPORT(alpha_j);
     ADREPORT(Epsilon_stz);
   }
 
-  // return JNLL
   return jnll;
 }
