@@ -128,16 +128,16 @@ Type objective_function<Type>::operator() ()
 
   // Prior contribution to likelihood. Values are defaulted (for now). Only run if options[0]==1
   if(options[0] == 1) {
-   PARALLEL_REGION jnll[0] -= dnorm(logtau,    Type(0.0), Type(1.0),   true);  // N(0,1) prior for logtau
-   PARALLEL_REGION jnll[0] -= dnorm(logkappa,  Type(0.0), Type(1.0),   true);  // N(0,1) prior for logkappa
+   PARALLEL_REGION jnll_comp[0] -= dnorm(logtau,    Type(0.0), Type(1.0),   true);  // N(0,1) prior for logtau
+   PARALLEL_REGION jnll_comp[0] -= dnorm(logkappa,  Type(0.0), Type(1.0),   true);  // N(0,1) prior for logkappa
    if(num_t > 1) {
-     PARALLEL_REGION jnll[0] -= dnorm(trho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
+     PARALLEL_REGION jnll_comp[0] -= dnorm(trho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
    }
    if(num_z > 1) {
-     PARALLEL_REGION jnll[0] -= dnorm(zrho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
+     PARALLEL_REGION jnll_comp[0] -= dnorm(zrho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
    }
    for( int j = 0; j < alpha_j.size(); j++){
-     PARALLEL_REGION jnll[0] -= dnorm(alpha_j(j), Type(0.0), Type(100), true); // N(0, sqrt(1/.001)) prior for fixed effects.
+     PARALLEL_REGION jnll_comp[0] -= dnorm(alpha_j(j), Type(0.0), Type(100), true); // N(0, sqrt(1/.001)) prior for fixed effects.
    }
   }
 
@@ -145,16 +145,16 @@ Type objective_function<Type>::operator() ()
   // Possibilities of Kronecker include: S, ST, SZ, and STZ
   if (num_t == 1 & num_z == 1)  {
     printf("GP FOR SPACE  ONLY \n");
-    PARALLEL_REGION jnll[1] += GMRF(Q_ss,false)(epsilon_stz);
+    PARALLEL_REGION jnll_comp[1] += GMRF(Q_ss,false)(epsilon_stz);
   } else if(num_t > 1 & num_z == 1) {
     printf("GP FOR SPACE-TIME \n");
-    PARALLEL_REGION jnll[1] += SEPARABLE(AR1(trho),GMRF(Q_ss,false))(Epsilon_stz);
+    PARALLEL_REGION jnll_comp[1] += SEPARABLE(AR1(trho),GMRF(Q_ss,false))(Epsilon_stz);
   } else if (num_t == 1 & num_z > 1) {
     printf("GP FOR SPACE-Z \n");
-    PARALLEL_REGION jnll[1] += SEPARABLE(AR1(zrho),GMRF(Q_ss,false))(Epsilon_stz);
+    PARALLEL_REGION jnll_comp[1] += SEPARABLE(AR1(zrho),GMRF(Q_ss,false))(Epsilon_stz);
   } else if (num_t > 1 & num_z > 1) {
     printf("GP FOR SPACE-TIME-Z \n");
-    PARALLEL_REGION jnll[1] += SEPARABLE(AR1(zrho),SEPARABLE(AR1(trho),GMRF(Q_ss,false)))(Epsilon_stz);
+    PARALLEL_REGION jnll_comp[1] += SEPARABLE(AR1(zrho),SEPARABLE(AR1(trho),GMRF(Q_ss,false)))(Epsilon_stz);
   }
 
   // Transform GMRFs and make vector form
@@ -198,7 +198,7 @@ Type objective_function<Type>::operator() ()
   for (int i = 0; i < num_i; i++){
     prob_i(i) = fe_i(i) + projepsilon_i(i);
     if(!isNA(y_i(i))){
-      PARALLEL_REGION jnll[2] -= dbinom( y_i(i), n_i(i), invlogit(prob_i(i)), true ) * w_i(i);
+      PARALLEL_REGION jnll_comp[2] -= dbinom( y_i(i), n_i(i), invlogit(prob_i(i)), true ) * w_i(i);
     }
   }
 
