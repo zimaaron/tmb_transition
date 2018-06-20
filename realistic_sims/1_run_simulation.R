@@ -4,6 +4,7 @@
 ## last editted 5/14/18
 
 ## options(error = recover)
+load('/homes/azimmer/scratch/tmb_space_debug.RData')
 
 ## DO THIS!
 ################################################################################
@@ -359,36 +360,6 @@ for(p in 1:nperiods){
 #########
 #########
 
-## TODO: temporary data and params - for SPACE ONLY DEBUG
-
-if(use_sim_data) X_xp = as.matrix(cbind(1, dt[,covs[, name], with=FALSE]))
-if(use_real_data) X_xp = as.matrix(rep(1, nrow(dt)), ncol = 1, nrow = nrow(dt))
-
-
-Data = list(num_i=nrow(dt),                 ## Total number of observations
-            num_s=mesh_s$n,                 ## Number of vertices in SPDE mesh
-            #num_t=nperiods,                 ## Number of periods
-            #num_z=1,
-            y_i=dt[, Y], ##                 ## Number of observed deaths in the cluster (N+ in binomial likelihood)
-            n_i=dt[, N], ##                 ## Number of observed exposures in the cluster (N in binomial likelihood)
-            #t_i=as.numeric(as.factor(dt[, year]))-1, ## Sample period of ( starting at zero )
-            #w_i = dt[, weight], 
-            X_ij=X_xp,                      ## Covariate design matrix
-            M0=spde$param.inla$M0,          ## SPDE sparse matrix
-            M1=spde$param.inla$M1,          ## SPDE sparse matrix
-            M2=spde$param.inla$M2,          ## SPDE sparse matrix
-            Aproj = A.proj,                 ## mesh to prediction point projection matrix
-            flag = 1, ##                    ## do normalization outside of optimization
-            options = c(1, 1))              ## option1==1 use priors
-
-## staring values for parameters
-Parameters = list(alpha_j   =  rep(0,ncol(X_xp)),                 ## FE parameters alphas
-                  logtau=.5,                                     ## log inverse of tau  (Epsilon)
-                  logkappa=.5,	                                  ## Matern Range parameter
-             #     trho=0.5,
-             #     zrho=0.5,
-                  Epsilon_stz=array(0, dim = c(mesh_s$n, ncol=nperiods)))     ## GP locations
-
 
 ###########
 ## SETUP ##
@@ -412,7 +383,7 @@ Data = list(num_i=nrow(dt),                 ## Total number of observations
             M2=spde$param.inla$M2,          ## SPDE sparse matrix
             Aproj = A.proj,                 ## mesh to prediction point projection matrix
             flag = 1, ##                    ## do normalization outside of optimization if 1
-            options = c(1, 0))              ## option1==1 use priors, option2==1 use adreprt
+            options = c(1, 1, 0))              ## option1==1 use priors, option2==1 use nugget, option3==1, use adreprt
 
 ## staring values for parameters
 Parameters = list(alpha_j   =  rep(0,ncol(X_xp)),                 ## FE parameters alphas
@@ -420,7 +391,8 @@ Parameters = list(alpha_j   =  rep(0,ncol(X_xp)),                 ## FE paramete
                   logkappa=0.0,	                                  ## Matern Range parameter
                   trho=0.5,
                   zrho=0.5,
-                  Epsilon_stz=array(1, dim = c(mesh_s$n, ncol=nperiods)))     ## GP locations
+                  Epsilon_stz=array(0, dim = c(mesh_s$n, ncol=nperiods)), ## random effects at GP vertex locations
+                  nug_i = rep(0, nrow(dt)))     
 
 
 #########
@@ -437,9 +409,9 @@ dyn.load( dynlib(templ) )
 
 obj <- MakeADFun(data=Data, parameters=Parameters, map=list(zrho = factor(NA)), 
                  random="Epsilon_stz", hessian=TRUE, DLL=templ)
-## obj <- MakeADFun(data=Data, parameters=Parameters, map=list(zrho = factor(NA),
-##                                                             trho = factor(NA)),
-##                  random="Epsilon_stz", hessian=TRUE, DLL=templ)
+obj <- MakeADFun(data=Data, parameters=Parameters, map=list(zrho = factor(NA),
+                                                            trho = factor(NA)),
+                 random="Epsilon_stz", hessian=TRUE, DLL=templ)
 obj <- normalize(obj, flag="flag")
 
 
