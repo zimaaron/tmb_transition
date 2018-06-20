@@ -100,7 +100,7 @@ Type objective_function<Type>::operator() ()
   // Define the joint-negative log-likelihood as a parallel_accumulator	   // Define the joint-negative log-likelihood as a parallel_accumulator
   // this allows us to add or subtract numbers to the object in parallel	   // this allows us to add or subtract numbers to the object in parallel
   // parallel_accumulator<Type> jnll(this);	   // parallel_accumulator<Type> jnll(this);
-  vector<Type> jnll_comp(3);	   vector<Type> jnll_comp(3);
+  vector<Type> jnll_comp(3);
   jnll_comp[0] = Type(0); // priors contribution	   jnll_comp[0] = Type(0); // priors contribution
   jnll_comp[1] = Type(0); // latent field contrib	   jnll_comp[1] = Type(0); // latent field contrib
   jnll_comp[2] = Type(0); // data contrib
