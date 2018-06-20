@@ -46,6 +46,32 @@ bool isNA(Type x){
 }
 
 
+// Robust Inverse Logit that sets min and max values to avoid numerical instability
+template<class Type>
+Type invlogit_robust(Type x){
+  if (x < -20.723){
+    x = -20.723; // corresponds to p=1e-9
+  } else if ( x > 20.723 ){
+    x = 20.723;  // cooresponds to p=1-1e-9
+  }
+  return 1 / (1 + exp( -1.0 * x ));
+}
+
+
+// AR funtion from neal m
+template<class Type>
+SparseMatrix<Type> ar_Q(int N, Type rho, Type sigma) {
+  SparseMatrix<Type> Q(N,N);
+  Q.insert(0,0) = (1.) / pow(sigma, 2.);
+  for (size_t n = 1; n < N; n++) {
+    Q.insert(n,n) = (1. + pow(rho, 2.)) / pow(sigma, 2.);
+    Q.insert(n-1,n) = (-1. * rho) / pow(sigma, 2.);
+    Q.insert(n,n-1) = (-1. * rho) / pow(sigma, 2.);
+  }
+  Q.coeffRef(N-1,N-1) = (1.) / pow(sigma, 2.);
+  return Q;
+}
+
 // objective function (ie the likelihood function for the model), returns the evaluated negative log likelihood
 template<class Type>
 Type objective_function<Type>::operator() ()
@@ -77,20 +103,23 @@ Type objective_function<Type>::operator() ()
 
   // Options
   DATA_VECTOR(options)       // boolean vector of options to be used to select different models/modelling options:
-                             // 0: Include priors. All are default settings right now
-                             // 1: If 0, ADREPORT is on. Used for testing for now
-                             // 2:
+                             // 0: If 1, Include priors. All are default settings right now
+                             // 1: If 1, ADREPORT is on. Used for testing for now
+                             // 2: If 1, use nugget
 
   // Parameters
-  PARAMETER_VECTOR(alpha_j); // fixed effect coefs, including intercept as first index
-  PARAMETER(logtau);         // log of INLA tau param (precision of space-time covariance mat)
-  PARAMETER(logkappa);       // log of INLA kappa - related to spatial correlation and range
-  PARAMETER(trho);           // temporal autocorrelation parameter for AR1, natural scale
-  PARAMETER(zrho);           // Z autocorrelation parameter for AR1, natural scale
+  PARAMETER_VECTOR(alpha_j);   // fixed effect coefs, including intercept as first index
+  PARAMETER(logtau);           // log of INLA tau param (precision of space-time covariance mat)
+  PARAMETER(logkappa);         // log of INLA kappa - related to spatial correlation and range
+  PARAMETER(trho_trans);             // temporal autocorrelation parameter for AR1, natural scale
+  PARAMETER(zrho_trans);             // Z autocorrelation parameter for AR1, natural scale
+  PARAMETER(log_nugget_sigma); // log of the standard deviation of the normal error nugget term
+
 
   // Random effects
   PARAMETER_ARRAY(Epsilon_stz); // Random effects for each STZ mesh location. Should be 3D array of dimensions num_s by num_t by num_z
-
+  PARAMETER_VECTOR(nug_i);       // Random effects of the nugget
+  
   printf("Epsilon_stz size: %d \n", Epsilon_stz.size());
 
   // ////////////////////////////////////////////////////////////////////////////
@@ -112,14 +141,15 @@ Type objective_function<Type>::operator() ()
 
   // Make spatial precision matrix
   SparseMatrix<Type> Q_ss = spde_Q(logkappa, logtau, M0, M1, M2);
-  printf("Q_ss size: %d \n", Q_ss.size());
+  // printf("Q_ss size: %d \n", Q_ss.size());
 
   // Make transformations of some of our parameters
   Type range     = sqrt(8.0) / exp(logkappa);
   Type sigma     = 1.0 / sqrt(4.0 * 3.14159265359 * exp(2.0 * logtau) * exp(2.0 * logkappa));
-  Type trho_trans = log((1.0 + trho) / (1.0 - trho));
-  Type zrho_trans = log((1.0 + zrho) / (1.0 - zrho));
-
+  Type trho      = (exp(trho_trans) - 1) / (exp(trho_trans) + 1); // TRANSOFRM from -inf, inf to -1, 1.. //log((1.1 + trho) / (1.1 - trho));
+  Type zrho      = (exp(zrho_trans) - 1) / (exp(zrho_trans) + 1); //TRANSOFRM from -inf, inf to -1, 1.. // log((1.1 + zrho) / (1.1 - zrho));
+  Type nugget_sigma  = exp(log_nugget_sigma);
+  
   // Define objects for derived values
   vector<Type> fe_i(num_i);                         // main effect X_ij %*% t(alpha_j)
   vector<Type> epsilon_stz(num_s * num_t * num_z);  // Epsilon_stz unlisted into a vector for easier matrix multiplication
@@ -137,7 +167,7 @@ Type objective_function<Type>::operator() ()
      PARALLEL_REGION jnll_comp[0] -= dnorm(zrho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
    }
    for( int j = 0; j < alpha_j.size(); j++){
-     PARALLEL_REGION jnll_comp[0] -= dnorm(alpha_j(j), Type(0.0), Type(100), true); // N(0, sqrt(1/.001)) prior for fixed effects.
+     PARALLEL_REGION jnll_comp[0] -= dnorm(alpha_j(j), Type(0.0), Type(3), true); // N(0, sqrt(1/.001)) prior for fixed effects.
    }
   }
 
@@ -157,18 +187,26 @@ Type objective_function<Type>::operator() ()
     PARALLEL_REGION jnll_comp[1] += SEPARABLE(AR1(zrho),SEPARABLE(AR1(trho),GMRF(Q_ss,false)))(Epsilon_stz);
   }
 
+  // nugget contribution to the likelihood
+  if(options[2] == 1 ){
+    printf("adding in Nugget \n");
+    for (int i = 0; i < num_i; i++){
+      PARALLEL_REGION jnll_comp[1] -= dnorm(nug_i(i), Type(0.0), nugget_sigma, true);
+    }
+  }
+
   // Transform GMRFs and make vector form
-  for(int s = 0; s < num_s; s++){
-    if(num_t==1) {
+  for(int s = 0; s < num_s; s++){ // space
+
+    if(num_t == 1) { // single time
       epsilon_stz[(s)] = Epsilon_stz(s);
     } else{
-      for(int t = 0; t < num_t; t++){
-	if(num_z == 1) {
+      for(int t = 0; t < num_t; t++){ // more than one time
+	if(num_z == 1) { // single z 
 	  epsilon_stz[(s + num_s * t )] = Epsilon_stz(s,t);
 	} else {
-	  for(int z = 0; z < num_z; z++){
-	    // TODO check indexing on this one
-	    epsilon_stz[(s + num_s * t + num_t * z)] = Epsilon_stz(s,t,z);
+	  for(int z = 0; z < num_z; z++){ // more than one z
+	    epsilon_stz[(s + num_s * t + num_s * num_t * z)] = Epsilon_stz(s,t,z);
 	  } // z-dim
 	}
       } // time
@@ -176,7 +214,6 @@ Type objective_function<Type>::operator() ()
   } // space
 
   // Project from mesh points to data points in order to eval likelihood at each data point
-  // TODO expand this for Z
   projepsilon_i = Aproj * epsilon_stz.matrix();
 
   // evaluate fixed effects for alpha_j values
@@ -185,9 +222,9 @@ Type objective_function<Type>::operator() ()
   // Return un-normalized density on request
   if (flag == 1){
     printf("Returning before data likelihood b/c flag == 1\n");
-    printf("jnll of priors: %f\n", asDouble(jnll_comp(0)));
-    printf("jnll of gmrf:   %f\n", asDouble(jnll_comp(1)));
-    printf("jnll of data:   %f\n", asDouble(jnll_comp(2)));
+    printf("jnll of priors:       %f\n", asDouble(jnll_comp(0)));
+    printf("jnll of gmrf & nug:   %f\n", asDouble(jnll_comp(1)));
+    printf("jnll of data:         %f\n", asDouble(jnll_comp(2)));
     Type jnll = jnll_comp.sum();
     printf("Combined jnll is: %f\n", asDouble(jnll));
 
@@ -195,11 +232,15 @@ Type objective_function<Type>::operator() ()
   } 
 
   // Likelihood contribution from each datapoint i
+  printf("Data likelihood \n")
   for (int i = 0; i < num_i; i++){
-    prob_i(i) = fe_i(i) + projepsilon_i(i);
+
+    prob_i(i) = fe_i(i) + projepsilon_i(i) + nug_i(i);
+
     if(!isNA(y_i(i))){
-      PARALLEL_REGION jnll_comp[2] -= dbinom( y_i(i), n_i(i), invlogit(prob_i(i)), true ) * w_i(i);
+      PARALLEL_REGION jnll_comp[2] -= dbinom( y_i(i), n_i(i), invlogit_robust(prob_i(i)), true ) * w_i(i);
     }
+    
   }
 
   // to help with debug, print each loglik component
@@ -213,7 +254,7 @@ Type objective_function<Type>::operator() ()
 
   
   // Report estimates
-  if(options[1] == 0){
+  if(options[1] == 1){
     ADREPORT(alpha_j);
     ADREPORT(Epsilon_stz);
   }
