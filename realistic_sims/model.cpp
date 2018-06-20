@@ -232,7 +232,7 @@ Type objective_function<Type>::operator() ()
   } 
 
   // Likelihood contribution from each datapoint i
-  printf("Data likelihood \n")
+  printf("Data likelihood \n");
   for (int i = 0; i < num_i; i++){
 
     prob_i(i) = fe_i(i) + projepsilon_i(i) + nug_i(i);
