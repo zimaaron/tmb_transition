@@ -188,7 +188,7 @@ Type objective_function<Type>::operator() ()
   }
 
   // nugget contribution to the likelihood
-  if(options[2] == 1 ){
+  if(options[1] == 1 ){
     printf("adding in Nugget \n");
     for (int i = 0; i < num_i; i++){
       PARALLEL_REGION jnll_comp[1] -= dnorm(nug_i(i), Type(0.0), nugget_sigma, true);
@@ -254,7 +254,7 @@ Type objective_function<Type>::operator() ()
 
   
   // Report estimates
-  if(options[1] == 1){
+  if(options[2] == 1){
     ADREPORT(alpha_j);
     ADREPORT(Epsilon_stz);
   }
