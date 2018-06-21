@@ -238,7 +238,7 @@ Type objective_function<Type>::operator() ()
     if(options[1] == 1) { // include nugget
       prob_i(i) = fe_i(i) + projepsilon_i(i) + nug_i(i);
     } else{
-       prob_i(i) = fe_i(i) + projepsilon_i(i)
+      prob_i(i) = fe_i(i) + projepsilon_i(i);
     }
       
     if(!isNA(y_i(i))){
