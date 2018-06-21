@@ -103,8 +103,11 @@ ncores <- 3
 ## transform some inputs into other useful quantities
 
 ## convert sp.range and sp.var into sp.kappa for rspde function
-sp.kappa <- sqrt(8) / sp.range
-
+sp.kappa   <- sqrt(8) / sp.range
+logkappa   <- log(sp.kappa)
+sp.tau     <- sqrt(1 / (4 * pi * sp.kappa ^ 2 * sp.var)) ## sp.var = 1/(4*pi*kappa^2*tau^2)
+logtau     <- log(sp.tau)
+trho_trans <- log((-1 - t.rho) / (t.rho - 1))
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -142,6 +145,9 @@ true.params <- data.table(param = c('int',
                                     sp.range,
                                     sp.var,
                                     t.rho))
+true.par.vec <- c(alpha, betas, logtau, logkappa, trho_trans)
+names(true.par.vec) <- c(rep('alpha_j', length(betas) + 1), 'logtau', 'logkappa', 'trho_trans')
+if(length(year_list) == 1) true.par.vec <- true.par.vec[-length(true.par.vec)]
 
 saveRDS(file = sprintf('%s/simulated_obj/true_param_table.rds', out.dir),
         object = true.params)
@@ -383,7 +389,7 @@ Data = list(num_i=nrow(dt),                 ## Total number of observations
             M2=spde$param.inla$M2,          ## SPDE sparse matrix
             Aproj = A.proj,                 ## mesh to prediction point projection matrix
             flag = 1, ##                    ## do normalization outside of optimization if 1
-            options = c(1, 1, 0))           ## option1==1 use priors, option2==1 use nugget, option3==1, use adreprt
+            options = c(1, 0, 0))           ## option1==1 use priors, option2==1 use nugget, option3==1, use adreprt
 
 ## staring values for parameters
 Parameters = list(alpha_j   =  rep(0,ncol(X_xp)),                 ## FE parameters alphas
@@ -410,10 +416,26 @@ dyn.load( dynlib(templ) )
 
 ## obj <- MakeADFun(data=Data, parameters=Parameters, map=list(zrho = factor(NA)), 
 ##                  random="Epsilon_stz", hessian=TRUE, DLL=templ)
+
+
+## build up list of params in model.cpp to exclude from this fit depending on sim options
+## and a vector of objects that are random effects
+excluded.params <- list(zrho_trans = factor(NA))
+random.effects  <- c('Epsilon_stz')
+if(Data[['options']][2] == 0){ ## then exclude nugget
+  excluded.params[['log_nugget_sigma']] <- factor(NA)
+  excluded.params[['nug_i']] <- rep(factor(NA), length(Parameters$nug_i))
+}
+if(Data[['options']][2] == 1){
+  random.effects <- c(random.effects, 'nug_i')
+}
+if(nperiods == 1){
+  excluded.params[['trho_trans']] <- factor(NA)
+}
+
 obj <- MakeADFun(data=Data, parameters=Parameters,
-                 map=list(zrho_trans= factor(NA),
-                          trho_trans= factor(NA)),
-                 random=c("Epsilon_stz", "nug_i"),
+                 map=excluded.params,
+                 random=random.effects,
                  hessian=TRUE,
                  DLL=templ)
 obj <- normalize(obj, flag="flag")
