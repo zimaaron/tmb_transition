@@ -320,7 +320,7 @@ sim.realistic.data <- function(reg,
 
   ## finally, we combine the gp and the covariate effecgts to get our surface in link (e.g. logit if binomial) space
   true.rast <- gp.rast
-  for(cc in 1:length(cov_layers)){
+  for(cc in 1:length(cov_layers)){ ## loop though and add on coefficients*covariates to gp raster layers
     true.rast <- true.rast + betas[cc] * cov_layers[[cc]] ## should work for both stationary and time-varying
   }
 
