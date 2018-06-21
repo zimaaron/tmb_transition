@@ -140,35 +140,37 @@ Type objective_function<Type>::operator() ()
 
   // Latent field/Random effect contribution to likelihood.
   // Possibilities of Kronecker include: S, ST, SZ, and STZ
-  if (num_t == 1 & num_z == 1)  {
-    printf("GP FOR SPACE  ONLY \n");
-    PARALLEL_REGION jnll += GMRF(Q_ss,false)(epsilon_stz);
-  } else if(num_t > 1 & num_z == 1) {
-    printf("GP FOR SPACE-TIME \n");
-    PARALLEL_REGION jnll += SEPARABLE(AR1(trho),GMRF(Q_ss,false))(Epsilon_stz);
-  } else if (num_t == 1 & num_z > 1) {
-    printf("GP FOR SPACE-Z \n");
-    PARALLEL_REGION jnll += SEPARABLE(AR1(zrho),GMRF(Q_ss,false))(Epsilon_stz);
-  } else if (num_t > 1 & num_z > 1) {
-    printf("GP FOR SPACE-TIME-Z \n");
-    PARALLEL_REGION jnll += SEPARABLE(AR1(zrho),SEPARABLE(AR1(trho),GMRF(Q_ss,false)))(Epsilon_stz);
-  }
+  //if (num_t == 1 & num_z == 1)  {
+  //printf("GP FOR SPACE  ONLY \n");
+
+  PARALLEL_REGION jnll += GMRF(Q_ss,false)(epsilon_stz);
+
+  //} else if(num_t > 1 & num_z == 1) {
+  //printf("GP FOR SPACE-TIME \n");
+  //PARALLEL_REGION jnll += SEPARABLE(AR1(trho),GMRF(Q_ss,false))(Epsilon_stz);
+  //} else if (num_t == 1 & num_z > 1) {
+  //printf("GP FOR SPACE-Z \n");
+  //PARALLEL_REGION jnll += SEPARABLE(AR1(zrho),GMRF(Q_ss,false))(Epsilon_stz);
+  //} else if (num_t > 1 & num_z > 1) {
+  //  printf("GP FOR SPACE-TIME-Z \n");
+  //  PARALLEL_REGION jnll += SEPARABLE(AR1(zrho),SEPARABLE(AR1(trho),GMRF(Q_ss,false)))(Epsilon_stz);
+  //}
 
   // Transform GMRFs and make vector form
   for(int s = 0; s < num_s; s++){
-    if(num_t == 1){
-      epsilon_stz(s) = Epsilon_stz(s);
-    }
-    for(int t = 0; t < num_t; t++){
-      if(num_z == 1) {
-        epsilon_stz(s + num_s * t ) = Epsilon_stz(s,t);
-      } else {
-        for(int z = 0; z < num_z; z++){
-          // TODO check indexing on this one
-          epsilon_stz(s + num_s * t + num_t * z) = Epsilon_stz(s,t,z);
-        }
-      }
-    }
+    // if(num_t == 1){
+    epsilon_stz(s) = Epsilon_stz(s);
+      // }
+    //for(int t = 0; t < num_t; t++){
+    //  if(num_z == 1) {
+    //    epsilon_stz(s + num_s * t ) = Epsilon_stz(s,t);
+    //  } else {
+    //    for(int z = 0; z < num_z; z++){
+    //      // TODO check indexing on this one
+    //      epsilon_stz(s + num_s * t + num_t * z) = Epsilon_stz(s,t,z);
+    //    }
+    //  }
+    //}
   }
 
   // Project from mesh points to data points in order to eval likelihood at each data point
