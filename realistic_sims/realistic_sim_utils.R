@@ -252,7 +252,8 @@ sim.realistic.data <- function(reg,
                              y = simple_raster,
                              field = gp.iid)
   }
-  
+
+  ## plot gp
   pdf(sprintf('%s/simulated_obj/st_gp_plot.pdf', out.dir), width = 16, height = 16)
   par(mfrow = rep( ceiling(sqrt( dim(gp.rast)[3] )), 2))
   for(yy in 1:dim(gp.rast)[3]){
@@ -284,26 +285,26 @@ sim.realistic.data <- function(reg,
                                             mean = 0,
                                             sd = sqrt(nug.var)))
       }else{ ## add a layer
-        nug.rast <- addLayer(gp.rast,
+        nug.rast <- addLayer(nug.rast,
                              rasterize(x = pix.pts@data[, 2:3],
                                        y = simple_raster,
                                        field = rnorm(n = nrow(pix.pts@data),
                                                      mean = 0,
-                                                     sd = sqrt(nug.var))))
-
-        ## plot nugget
-        pdf(sprintf('%s/simulated_obj/nugget_plot.pdf', out.dir), width = 16, height = 16)
-        par(mfrow = rep( ceiling(sqrt( dim(gp.rast)[3] )), 2))
-        for(yy in 1:dim(nug.rast)[3]){
-          raster::plot(nug.rast[[yy]],
-                       main = paste('GP',
-                                    year_list[yy],
-                                    sep = ': ')) 
-        }
-        dev.off()
-        
+                                                     sd = sqrt(nug.var))))        
       } ## else
     } ## year loop
+
+    ## plot nugget
+    pdf(sprintf('%s/simulated_obj/nugget_plot.pdf', out.dir), width = 16, height = 16)
+    par(mfrow = rep( ceiling(sqrt( dim(gp.rast)[3] )), 2))
+    for(yy in 1:dim(nug.rast)[3]){
+      raster::plot(nug.rast[[yy]],
+                   main = paste('GP',
+                                year_list[yy],
+                                sep = ': ')) 
+    }
+    dev.off()
+    
   } ## non-null nug.var
 
 
