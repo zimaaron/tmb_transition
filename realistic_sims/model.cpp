@@ -235,8 +235,12 @@ Type objective_function<Type>::operator() ()
   printf("Data likelihood \n");
   for (int i = 0; i < num_i; i++){
 
-    prob_i(i) = fe_i(i) + projepsilon_i(i) + nug_i(i);
-
+    if(options[1] == 1) { // include nugget
+      prob_i(i) = fe_i(i) + projepsilon_i(i) + nug_i(i);
+    } else{
+       prob_i(i) = fe_i(i) + projepsilon_i(i)
+    }
+      
     if(!isNA(y_i(i))){
       PARALLEL_REGION jnll_comp[2] -= dbinom( y_i(i), n_i(i), invlogit_robust(prob_i(i)), true ) * w_i(i);
     }
@@ -244,9 +248,9 @@ Type objective_function<Type>::operator() ()
   }
 
   // to help with debug, print each loglik component
-  printf("jnll of priors: %f\n", asDouble(jnll_comp(0)));
-  printf("jnll of gmrf:   %f\n", asDouble(jnll_comp(1)));
-  printf("jnll of data:   %f\n", asDouble(jnll_comp(2)));
+  printf("jnll of priors:       %f\n", asDouble(jnll_comp(0)));
+  printf("jnll of gmrf (& nug): %f\n", asDouble(jnll_comp(1)));
+  printf("jnll of data:         %f\n", asDouble(jnll_comp(2)));
 
   // sum logliks
   Type jnll = jnll_comp.sum();
