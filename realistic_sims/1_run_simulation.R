@@ -383,14 +383,15 @@ Data = list(num_i=nrow(dt),                 ## Total number of observations
             M2=spde$param.inla$M2,          ## SPDE sparse matrix
             Aproj = A.proj,                 ## mesh to prediction point projection matrix
             flag = 1, ##                    ## do normalization outside of optimization if 1
-            options = c(1, 1, 0))              ## option1==1 use priors, option2==1 use nugget, option3==1, use adreprt
+            options = c(1, 1, 0))           ## option1==1 use priors, option2==1 use nugget, option3==1, use adreprt
 
 ## staring values for parameters
 Parameters = list(alpha_j   =  rep(0,ncol(X_xp)),                 ## FE parameters alphas
-                  logtau=1.0,                                     ## log inverse of tau  (Epsilon)
+                  logtau=0.0,                                     ## log inverse of tau  (Epsilon)
                   logkappa=0.0,	                                  ## Matern Range parameter
-                  trho=0.5,
-                  zrho=0.5,
+                  trho_trans=0.0,
+                  zrho_trans=0.0,
+                  log_nugget_sigma = 0.0, 
                   Epsilon_stz=array(0, dim = c(mesh_s$n, ncol=nperiods)), ## random effects at GP vertex locations
                   nug_i = rep(0, nrow(dt)))     
 
@@ -407,11 +408,14 @@ dyn.load( dynlib(templ) )
 ## TODO: could also do a simple run to start to get better starting params
 ## Report0 = obj$report() 
 
-obj <- MakeADFun(data=Data, parameters=Parameters, map=list(zrho = factor(NA)), 
-                 random="Epsilon_stz", hessian=TRUE, DLL=templ)
-obj <- MakeADFun(data=Data, parameters=Parameters, map=list(zrho = factor(NA),
-                                                            trho = factor(NA)),
-                 random="Epsilon_stz", hessian=TRUE, DLL=templ)
+## obj <- MakeADFun(data=Data, parameters=Parameters, map=list(zrho = factor(NA)), 
+##                  random="Epsilon_stz", hessian=TRUE, DLL=templ)
+obj <- MakeADFun(data=Data, parameters=Parameters,
+                 map=list(zrho_trans= factor(NA),
+                          trho_trans= factor(NA)),
+                 random=c("Epsilon_stz", "nug_i"),
+                 hessian=TRUE,
+                 DLL=templ)
 obj <- normalize(obj, flag="flag")
 
 
