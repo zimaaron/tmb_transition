@@ -59,14 +59,14 @@ Type objective_function<Type>::operator() ()
   // Indices
   DATA_INTEGER(num_i);       // number of datapts in space-time-Z (aka STZ)
   DATA_INTEGER(num_s);       // number of mesh pts in space mesh
-  //DATA_INTEGER(num_t);       // number of time periods
-  //DATA_INTEGER(num_z);       // number of Z groups
+  DATA_INTEGER(num_t);       // number of time periods
+  DATA_INTEGER(num_z);       // number of Z groups
 
   // Data (each, excpect for X_ij is a vector of length num_i)
   DATA_VECTOR(y_i);          // obs successes per binomial experiment at point i (aka cluster)
   DATA_VECTOR(n_i);          // trials per cluster
-  //DATA_IVECTOR(t_i);         // time period of the data point
-  //DATA_IVECTOR(w_i);         // weights for observations
+  DATA_IVECTOR(t_i);         // time period of the data point
+  DATA_IVECTOR(w_i);         // weights for observations
   DATA_MATRIX(X_ij);         // covariate design matrix (num_i by number of fixed effects matrix)
 
   // SPDE objects
@@ -85,11 +85,11 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(alpha_j); // fixed effect coefs, including intercept as first index
   PARAMETER(logtau);         // log of INLA tau param (precision of space-time covariance mat)
   PARAMETER(logkappa);       // log of INLA kappa - related to spatial correlation and range
-  //PARAMETER(trho);           // temporal autocorrelation parameter for AR1, natural scale
-  //PARAMETER(zrho);           // Z autocorrelation parameter for AR1, natural scale
+  PARAMETER(trho);           // temporal autocorrelation parameter for AR1, natural scale
+  PARAMETER(zrho);           // Z autocorrelation parameter for AR1, natural scale
 
   // Random effects
-  PARAMETER_ARRAY(Epsilon_stz); // Random effects for each STZ mesh location. Should be 3D array of dimensions num_s by num_t by num_z
+  PARAMETER_VECTOR(Epsilon_stz); // Random effects for each STZ mesh location. Should be 3D array of dimensions num_s by num_t by num_z
 
   printf("Epsilon_stz size: %d \n", Epsilon_stz.size());
 
@@ -114,12 +114,12 @@ Type objective_function<Type>::operator() ()
   // Make transformations of some of our parameters
   Type range     = sqrt(8.0) / exp(logkappa);
   Type sigma     = 1.0 / sqrt(4.0 * 3.14159265359 * exp(2.0 * logtau) * exp(2.0 * logkappa));
-  //Type trho_trans = log((1.0 + trho) / (1.0 - trho));
-  //Type zrho_trans = log((1.0 + zrho) / (1.0 - zrho));
+  Type trho_trans = log((1.0 + trho) / (1.0 - trho));
+  Type zrho_trans = log((1.0 + zrho) / (1.0 - zrho));
 
   // Define objects for derived values
   vector<Type> fe_i(num_i);                         // main effect X_ij %*% t(alpha_j)
-  vector<Type> epsilon_stz(num_s);// * num_t * num_z);  // Epsilon_stz unlisted into a vector for easier matrix multiplication
+  vector<Type> epsilon_stz(num_s * num_t * num_z);  // Epsilon_stz unlisted into a vector for easier matrix multiplication
   vector<Type> projepsilon_i(num_i);                // value of gmrf at data points
   vector<Type> prob_i(num_i);                       // Logit estimated prob for each point i
 
@@ -127,12 +127,12 @@ Type objective_function<Type>::operator() ()
   if(options[0] == 1) {
    PARALLEL_REGION jnll -= dnorm(logtau,    Type(0.0), Type(1.0),   true);  // N(0,1) prior for logtau
    PARALLEL_REGION jnll -= dnorm(logkappa,  Type(0.0), Type(1.0),   true);  // N(0,1) prior for logkappa
-   //if(num_t > 1) {
-   //  PARALLEL_REGION jnll -= dnorm(trho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
-   //}
-   //if(num_z > 1) {
-   //PARALLEL_REGION jnll -= dnorm(zrho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
-   //}
+   if(num_t > 1) {
+     PARALLEL_REGION jnll -= dnorm(trho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
+   }
+   if(num_z > 1) {
+     PARALLEL_REGION jnll -= dnorm(zrho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
+   }
    for( int j = 0; j < alpha_j.size(); j++){
      PARALLEL_REGION jnll -= dnorm(alpha_j(j), Type(0.0), Type(100), true); // N(0, sqrt(1/.001)) prior for fixed effects.
    }
@@ -140,63 +140,56 @@ Type objective_function<Type>::operator() ()
 
   // Latent field/Random effect contribution to likelihood.
   // Possibilities of Kronecker include: S, ST, SZ, and STZ
-  //if (num_t == 1 & num_z == 1)  {
-  //printf("GP FOR SPACE  ONLY \n");
+  if (num_t == 1 & num_z == 1)  {
+    printf("GP FOR SPACE  ONLY \n");
     PARALLEL_REGION jnll += GMRF(Q_ss,false)(epsilon_stz);
-    //} else if(num_t > 1 & num_z == 1) {
-    //printf("GP FOR SPACE-TIME \n");
-    //PARALLEL_REGION jnll += SEPARABLE(AR1(trho),GMRF(Q_ss,false))(Epsilon_stz);
-    //} else if (num_t == 1 & num_z > 1) {
-    //printf("GP FOR SPACE-Z \n");
-    //PARALLEL_REGION jnll += SEPARABLE(AR1(zrho),GMRF(Q_ss,false))(Epsilon_stz);
-    //} else if (num_t > 1 & num_z > 1) {
-    //printf("GP FOR SPACE-TIME-Z \n");
-    //PARALLEL_REGION jnll += SEPARABLE(AR1(zrho),SEPARABLE(AR1(trho),GMRF(Q_ss,false)))(Epsilon_stz);
-    //}
+  } else if(num_t > 1 & num_z == 1) {
+    printf("GP FOR SPACE-TIME \n");
+    PARALLEL_REGION jnll += SEPARABLE(AR1(trho),GMRF(Q_ss,false))(Epsilon_stz);
+  } else if (num_t == 1 & num_z > 1) {
+    printf("GP FOR SPACE-Z \n");
+    PARALLEL_REGION jnll += SEPARABLE(AR1(zrho),GMRF(Q_ss,false))(Epsilon_stz);
+  } else if (num_t > 1 & num_z > 1) {
+    printf("GP FOR SPACE-TIME-Z \n");
+    PARALLEL_REGION jnll += SEPARABLE(AR1(zrho),SEPARABLE(AR1(trho),GMRF(Q_ss,false)))(Epsilon_stz);
+  }
 
   // Transform GMRFs and make vector form
-  //printf("unlisting epsilon_stz");
   for(int s = 0; s < num_s; s++){
-    //if(num_t == 1){
-      epsilon_stz[s] = Epsilon_stz(s);
-      //} else{
-      //for(int t = 0; t < num_t; t++){
-      //if(num_z == 1) {
-      //  epsilon_stz[(s + num_s * t )] = Epsilon_stz(s,t);
-      //} else {
-      //  for(int z = 0; z < num_z; z++){
-      //    // TODO check indexing on this one
-	//    epsilon_stz[(s + num_s * t + num_s * num_t * z)] = Epsilon_stz(s,t,z);
-      //}
-      //}
-      //}
-      //}
+    if(num_t == 1){
+      epsilon_stz(s) = Epsilon_stz(s);
+    }
+    for(int t = 0; t < num_t; t++){
+      if(num_z == 1) {
+        epsilon_stz(s + num_s * t ) = Epsilon_stz(s,t);
+      } else {
+        for(int z = 0; z < num_z; z++){
+          // TODO check indexing on this one
+          epsilon_stz(s + num_s * t + num_t * z) = Epsilon_stz(s,t,z);
+        }
+      }
+    }
   }
 
   // Project from mesh points to data points in order to eval likelihood at each data point
   // TODO expand this for Z
-  // printf("projecting epsilon");
   projepsilon_i = Aproj * epsilon_stz.matrix();
 
   // evaluate fixed effects for alpha_j values
-  //printf("calculating fixed effects contrib to each datapt");
   fe_i = X_ij * alpha_j.matrix();
 
   // Return un-normalized density on request
-  //printf("checking flag value");
-  //if (flag == 0) return jnll;
+  if (flag == 0) return jnll;
 
   // Likelihood contribution from each datapoint i
-  printf("calculating loglik contrib from data");
   for (int i = 0; i < num_i; i++){
     prob_i(i) = fe_i(i) + projepsilon_i(i);
     if(!isNA(y_i(i))){
-      PARALLEL_REGION jnll -= dbinom( y_i(i), n_i(i), invlogit(prob_i(i)), true );// * w_i(i);
+      PARALLEL_REGION jnll -= dbinom( y_i(i), n_i(i), invlogit(prob_i(i)), true ) * w_i(i);
     }
   }
 
   // Report estimates
-  printf("adreport");
   if(options[1] == 0){
     ADREPORT(alpha_j);
     ADREPORT(Epsilon_stz);
