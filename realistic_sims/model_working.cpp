@@ -158,11 +158,11 @@ Type objective_function<Type>::operator() ()
   for(int s = 0; s < num_s; s++){
     for(int t = 0; t < num_t; t++){
       if(num_z == 1) {
-        epsilon_stz[(s + num_s * t )] = Epsilon_stz(s,t);
+        epsilon_stz(s + num_s * t ) = Epsilon_stz(s,t);
       } else {
         for(int z = 0; z < num_z; z++){
           // TODO check indexing on this one
-          epsilon_stz[(s + num_s * t + num_t * z)] = Epsilon_stz(s,t,z);
+          epsilon_stz(s + num_s * t + num_t * z) = Epsilon_stz(s,t,z);
         }
       }
     }
