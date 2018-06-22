@@ -123,7 +123,7 @@ Type objective_function<Type>::operator() ()
   }
 
   // Probability of Gaussian-Markov random fields (GMRFs)
-  PARALLEL_REGION jnll += GMRF(Q_ss, false)(epsilon_s);
+  PARALLEL_REGION jnll += GMRF(Q_ss)(epsilon_s);
 
   // Project from mesh points to data points in order to eval likelihood at each data point
   projepsilon_i = Aproj * epsilon_s.matrix();
