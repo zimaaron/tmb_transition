@@ -44,6 +44,7 @@ library(gridExtra)
 library(grid)
 library(RColorBrewer)
 library(viridis)
+library(scales)
 
 ## Now we can switch to the TMB repo
 setwd(tmb_repo)
@@ -79,6 +80,10 @@ m.clust         <- as.numeric(loopvars[par.iter, 14])
 sample.strat    <- as.character(loopvars[par.iter, 15])
 cores           <- as.numeric(loopvars[par.iter, 16]) 
 ndraws          <- as.numeric(loopvars[par.iter, 17])
+alphaj.pri      <- eval(parse(text = "c(0, 3)")) ## normal mean and sd
+nug.pri         <- eval(parse(text = "c(1, 1e-5)")) ## gamma for nug preciion with shape and inv-scale
+l.tau.pri       <- NULL  ## taken from INLA spde mesh obj
+l.kap.pri       <- NULL  ## taken from INLA spde mesh obj
 
 covs <- data.table(name = cov_names, meas = cov_measures)
 
@@ -367,78 +372,161 @@ for(p in 1:nperiods){
 #########
 
 
-###########
-## SETUP ##
-###########
+## ###########
+## ## SETUP ##
+## ###########
 
 if(use_sim_data) X_xp = as.matrix(cbind(1, dt[,covs[, name], with=FALSE]))
-if(use_real_data) X_xp = as.matrix(rep(1, nrow(dt)), ncol = 1, nrow = nrow(dt))
+## if(use_real_data) X_xp = as.matrix(rep(1, nrow(dt)), ncol = 1, nrow = nrow(dt))
 
 
-Data = list(num_i=nrow(dt),                 ## Total number of observations
-            num_s=mesh_s$n,                 ## Number of vertices in SPDE mesh
-            num_t=nperiods,                 ## Number of periods
-            num_z=1,
-            y_i=dt[, Y], ##                 ## Number of observed deaths in the cluster (N+ in binomial likelihood)
-            n_i=dt[, N], ##                 ## Number of observed exposures in the cluster (N in binomial likelihood)
-            t_i=as.numeric(as.factor(dt[, year]))-1, ## Sample period of ( starting at zero )
-            w_i = dt[, weight], 
-            X_ij=X_xp,                      ## Covariate design matrix
-            M0=spde$param.inla$M0,          ## SPDE sparse matrix
-            M1=spde$param.inla$M1,          ## SPDE sparse matrix
-            M2=spde$param.inla$M2,          ## SPDE sparse matrix
-            Aproj = A.proj,                 ## mesh to prediction point projection matrix
-            flag = 1, ##                    ## do normalization outside of optimization if 1
-            options = c(1, 0, 0))           ## option1==1 use priors, option2==1 use nugget, option3==1, use adreprt
+## Data = list(num_i=nrow(dt),                 ## Total number of observations
+##             num_s=mesh_s$n,                 ## Number of vertices in SPDE mesh
+##             num_t=nperiods,                 ## Number of periods
+##             num_z=1,
+##             y_i=dt[, Y], ##                 ## Number of observed deaths in the cluster (N+ in binomial likelihood)
+##             n_i=dt[, N], ##                 ## Number of observed exposures in the cluster (N in binomial likelihood)
+##             t_i=as.numeric(as.factor(dt[, year]))-1, ## Sample period of ( starting at zero )
+##             w_i = dt[, weight], 
+##             X_ij=X_xp,                      ## Covariate design matrix
+##             M0=spde$param.inla$M0,          ## SPDE sparse matrix
+##             M1=spde$param.inla$M1,          ## SPDE sparse matrix
+##             M2=spde$param.inla$M2,          ## SPDE sparse matrix
+##             Aproj = A.proj,                 ## mesh to prediction point projection matrix
+##             flag = 1, ##                    ## do normalization outside of optimization if 1
+##             options = c(1, 0, 0))           ## option1==1 use priors, option2==1 use nugget, option3==1, use adreprt
 
-## staring values for parameters
-Parameters = list(alpha_j   =  rep(0,ncol(X_xp)),                 ## FE parameters alphas
-                  logtau=0.0,                                     ## log inverse of tau  (Epsilon)
-                  logkappa=0.0,	                                  ## Matern Range parameter
-                  trho_trans=0.0,
-                  zrho_trans=0.0,
-                  log_nugget_sigma = 0.0, 
-                  Epsilon_stz=array(0, dim = c(mesh_s$n, ncol=nperiods)), ## random effects at GP vertex locations
-                  nug_i = rep(0, nrow(dt)))     
+## ## staring values for parameters
+## Parameters = list(alpha_j   =  rep(0,ncol(X_xp)),                 ## FE parameters alphas
+##                   logtau=0.0,                                     ## log inverse of tau  (Epsilon)
+##                   logkappa=0.0,	                                  ## Matern Range parameter
+##                   trho_trans=0.0,
+##                   zrho_trans=0.0,
+##                   log_nugget_sigma = 0.0, 
+##                   Epsilon_stz=array(0, dim = c(mesh_s$n, ncol=nperiods)), ## random effects at GP vertex locations
+##                   nug_i = rep(0, nrow(dt)))     
 
 
-#########
-## FIT ##
-#########
+## #########
+## ## FIT ##
+## #########
 
-templ <- "model"
+## templ <- "model_space"
+## setwd("/homes/azimmer/tmb_transition/realistic_sims")
+## TMB::compile(paste0('./', templ,".cpp"))
+## dyn.load( dynlib(templ) )
+
+
+## ## TODO: could also do a simple run to start to get better starting params
+## ## Report0 = obj$report() 
+
+## ## obj <- MakeADFun(data=Data, parameters=Parameters, map=list(zrho = factor(NA)), 
+## ##                  random="Epsilon_stz", hessian=TRUE, DLL=templ)
+
+
+## ## build up list of params in model.cpp to exclude from this fit depending on sim options
+## ## and a vector of objects that are random effects
+## excluded.params <- list(zrho_trans = factor(NA))
+## random.effects  <- c('Epsilon_stz')
+## if(Data[['options']][2] == 0){ ## then exclude nugget
+##   excluded.params[['log_nugget_sigma']] <- factor(NA)
+##   excluded.params[['nug_i']] <- rep(factor(NA), length(Parameters$nug_i))
+## }
+## if(Data[['options']][2] == 1){
+##   random.effects <- c(random.effects, 'nug_i')
+## }
+## if(nperiods == 1){
+##   excluded.params[['trho_trans']] <- factor(NA)
+## }
+
+
+
+## if(templ == "model_working" | templ == "model_space"){
+##   ## staring values for parameters
+##   Parameters = list(alpha_j   =  rep(0,ncol(X_xp)),                 ## FE parameters alphas
+##                     logtau=0.0,                                     ## log inverse of tau  (Epsilon)
+##                     logkappa=0.0,	                                  ## Matern Range parameter
+##                     trho=0.0,
+##                     zrho=0.0,
+##                     log_nugget_sigma = 0.0, 
+##                     Epsilon_stz=array(0, dim = c(mesh_s$n, ncol=nperiods)), ## random effects at GP vertex locations
+##                     nug_i = rep(0, nrow(dt)))
+##   excluded.params[['zrho_trans']] <- NULL
+##   excluded.params[['zrho']] <- factor(NA)
+##   excluded.params[['log_nugget_sigma']] <- NULL
+##   excluded.params[['nug_i']] <- NULL
+
+##   if(templ == "model_space"){
+##     Parameters[['Epsilon_stz']] <- rep(0, mesh_s$n)
+##     excluded.params[['trho_trans']] <- NULL
+##     excluded.params[['trho']] <- factor(NA)
+##   }
+## }
+
+
+## obj <- MakeADFun(data=Data, parameters=Parameters,
+##                  map=excluded.params,
+##                  random=random.effects,
+##                  hessian=TRUE,
+##                  DLL=templ)
+## obj <- normalize(obj, flag="flag")
+
+
+
+
+
+
+######################################
+#####################################
+## using Nat's template - b/c it works!
+
+
+templ <- "model_nat"
 setwd("/homes/azimmer/tmb_transition/realistic_sims")
 TMB::compile(paste0('./', templ,".cpp"))
 dyn.load( dynlib(templ) )
 
-## TODO: could also do a simple run to start to get better starting params
-## Report0 = obj$report() 
+## setup data to feed into the model
+data_full <- list(num_i = nrow(dt),  # Total number of observations
+                  num_s = mesh_s$n,  # Number of vertices in SPDE mesh
+                  y_i   = dt[,Y],    # Number of observed deaths in the cluster
+                  Exp_i = dt[,N],    # Number of exposures in the cluster
+                  X_ij  = X_xp,               # Covariate design matrix
+                  M0    = spde$param.inla$M0, # SPDE sparse matrix
+                  M1    = spde$param.inla$M1, # SPDE sparse matrix
+                  M2    = spde$param.inla$M2, # SPDE sparse matrix
+                  Aproj = A.proj,             # Projection matrix
+                  options = c(1,0)            # See cpp code for options
+                  )
 
-## obj <- MakeADFun(data=Data, parameters=Parameters, map=list(zrho = factor(NA)), 
-##                  random="Epsilon_stz", hessian=TRUE, DLL=templ)
+## Specify starting values for TMB parameters
+tmb_params <- list(alpha_j   = rep(0,ncol(X_xp)), # Alphas for FE parameters
+                   log_tau   = 1.0,           # Log inverse of tau (Epsilon)
+                   log_kappa = 1.0,         # Matern range parameter
+                   Epsilon_s = matrix(1,nrow=nodes,ncol=1) # GP locations
+                   )
 
 
-## build up list of params in model.cpp to exclude from this fit depending on sim options
-## and a vector of objects that are random effects
-excluded.params <- list(zrho_trans = factor(NA))
-random.effects  <- c('Epsilon_stz')
-if(Data[['options']][2] == 0){ ## then exclude nugget
-  excluded.params[['log_nugget_sigma']] <- factor(NA)
-  excluded.params[['nug_i']] <- rep(factor(NA), length(Parameters$nug_i))
-}
-if(Data[['options']][2] == 1){
-  random.effects <- c(random.effects, 'nug_i')
-}
-if(nperiods == 1){
-  excluded.params[['trho_trans']] <- factor(NA)
-}
-
-obj <- MakeADFun(data=Data, parameters=Parameters,
-                 map=excluded.params,
-                 random=random.effects,
+## make the autodiff generated liklihood func & gradient
+obj <- MakeADFun(data=data_full,
+                 parameters=tmb_params,
+                 random=('Epsilon_s'),
                  hessian=TRUE,
                  DLL=templ)
-obj <- normalize(obj, flag="flag")
+
+## should we use the normalization flag?
+## obj <- normalize(obj, flag="flag")
+
+
+## Run optimizer
+ptm <- proc.time()[3]
+opt0 <- do.call("nlminb",list(start       =    obj$par,
+                              objective   =    obj$fn,
+                              gradient    =    obj$gr))
+                        ##    control     =    list(eval.max=1e4, iter.max=1e4, trace=1)))
+fit_time_tmb<- proc.time()[3] - ptm
+
+
 
 
 ## Run optimizer
@@ -473,13 +561,18 @@ rmvnorm_prec <- function(mu, prec, n.sims) {
   z <- as.matrix(z)
   mu + z
 }
-draws <- rmvnorm_prec(mu = mu , prec = SD0$jointPrecision, n.sims = ndraws)
+tmb_draws <- rmvnorm_prec(mu = mu , prec = SD0$jointPrecision, n.sims = ndraws)
 tmb_get_draws_time <- proc.time()[3] - ptm2
 
-## separate out the draws
+## separate out the tmb_draws
 parnames <- c(names(SD0$par.fixed), names(SD0$par.random))
-epsilon_draws <- draws[parnames=='Epsilon_stz',]
-alpha_draws   <- draws[parnames=='alpha_j',]
+epsilon_tmb_draws  <- tmb_draws[parnames=='Epsilon_s',]
+alpha_tmb_draws    <- tmb_draws[parnames=='alpha_j',]
+logkappa_tmb_draws <- tmb_draws[parnames=='log_kappa',]
+logtau_tmb_draws  <- tmb_draws[parnames=='log_tau',]
+## TODO add nugget prec drawsw
+
+
 
 ## values of S at each cell (long by nperiods)
 cell_s <- as.matrix(A.pred %*% epsilon_draws)
@@ -572,21 +665,20 @@ fit_time_inla <- proc.time()[3] - ptm
 #############
 
 ptm <- proc.time()[3]
-draws <- inla.posterior.sample(ndraws, res_fit)
+inla_draws <- inla.posterior.sample(ndraws, res_fit)
 inla_get_draws_time <- proc.time()[3] - ptm
 
 ## get parameter names
-par_names <- rownames(draws[[1]]$latent)
+par_names <- rownames(inla_draws[[1]]$latent)
 
 ## index to spatial field and linear coefficient samples
 s_idx <- grep('^space.*', par_names)
 l_idx <- which(!c(1:length(par_names)) %in% grep('^space.*|Predictor', par_names))
 
 ## get samples as matrices
-pred_s <- sapply(draws, function (x) x$latent[s_idx])
-pred_l <- sapply(draws, function (x) x$latent[l_idx])
+pred_s <- sapply(inla_draws, function (x) x$latent[s_idx])
+pred_l <- sapply(inla_draws, function (x) x$latent[l_idx])
 rownames(pred_l) <- res_fit$names.fixed
-
 
 ## get samples of s for all coo locations
 s <- as.matrix(A.pred %*% pred_s)
@@ -633,8 +725,8 @@ dir.create(sprintf('%s/validation', out.dir))
 
 res <- data.table(st_mesh_nodes = rep(nrow(epsilon_draws),2))
 res[,cores           := rep(ncores,2)]
-res[,s_mesh_max_edge := rep(maxedge,2)]
-res[,periods         := c(4,4)]
+res[,s_mesh_max_edge := rep(eval(parse(text = mesh_s_max_edge))[1],2)]
+res[,periods         := c(nperiods,nperiods)]
 res[,draws           := c(ndraws,ndraws)]
 
 ## time variables
@@ -651,111 +743,249 @@ for(i in 1:length(res_fit$names.fixed)){
 }
 
 ## hyperparameters
-res[,hyperpar_logtau_mean := c(res_fit$summary.hyperpar[1,1], SD0$par.fixed['logtau']) ]
-res[,hyperpar_logtau_sd := c(res_fit$summary.hyperpar[1,2], sqrt(SD0$cov.fixed['logtau','logtau'])) ]
+res[,hyperpar_logtau_mean := c(res_fit$summary.hyperpar[1,1], SD0$par.fixed['log_tau']) ]
+res[,hyperpar_logtau_sd := c(res_fit$summary.hyperpar[1,2], sqrt(SD0$cov.fixed['log_tau','log_tau'])) ]
 
-res[,hyperpar_logkappa_mean := c(res_fit$summary.hyperpar[2,1], SD0$par.fixed['logkappa']) ]
-res[,hyperpar_logkappa_sd := c(res_fit$summary.hyperpar[2,2], sqrt(SD0$cov.fixed['logkappa','logkappa'])) ]
+res[,hyperpar_logkappa_mean := c(res_fit$summary.hyperpar[2,1], SD0$par.fixed['log_kappa']) ]
+res[,hyperpar_logkappa_sd := c(res_fit$summary.hyperpar[2,2], sqrt(SD0$cov.fixed['log_kappa','log_kappa'])) ]
 
-res[,hyperpar_rho_mean := c(res_fit$summary.hyperpar[3,1], SD0$par.fixed['trho']) ]
-res[,hyperpar_rho_sd := c(res_fit$summary.hyperpar[3,2], sqrt(SD0$cov.fixed['trho','trho'])) ]
+## res[,hyperpar_rho_mean := c(res_fit$summary.hyperpar[3,1], SD0$par.fixed['trho']) ]
+## res[,hyperpar_rho_sd := c(res_fit$summary.hyperpar[3,2], sqrt(SD0$cov.fixed['trho','trho'])) ]
 
 ## truth
-true.params <- c(rep(NA, 9),
+res.true.params <- c(rep(NA, 9),
                  alpha, NA, ## intercept
                  c(rbind(betas, rep(NA, length(betas)))), ## fixed effect coefs
                  -0.5 * log(4 * pi * sp.var * sp.kappa^2), NA, ## log tau
-                 log(sp.kappa), NA, ## log kappa
-                 t.rho, NA ## time rho
-                 )
+                 log(sp.kappa), NA) ## log kappa
+if(nperiods > 1){
+  res.true.params <- c(res.true.params, c(t.rho, NA))
+}
 
 rr <- data.table(item=colnames(res))
-rr <- cbind(rr,true.params, t(res))
+rr <- cbind(rr,res.true.params, t(res))
 names(rr) <- c('quantity','TRUE', 'R-INLA','TMB')
 rr$diff <- rr[,3]-rr[,4]
 
 ## we can now plot this table with: grid.table(rr)
 
 ####################
-## setup big plot ##
+## setup big plot##
 ####################
 pdf(sprintf('%s/validation/inla_tmb_summary_comparison_plot.pdf',out.dir), height=15,width=30)
 
+
+## ~~~
+## plot the table of results
+## ~~~
 grid.table(rr)
 
-plot.in.logit.space <- FALSE
+## ~~~
+## plot priors and posteriors
+## ~~~
 
-for(thing in c('median','stdev')){
-    layout(matrix(1:20, 4, 5, byrow = TRUE))
-    samp=sample(cellIdx(ras_med_inla[[1]]),1e4)
-    for(i in 1:4){
+###########################################
+## plot priors and posteriors ##
+###########################################
+## assume:
+## 1) alphas are normal
+## 2) logtau and logkappa are normal
+## 3) nugget precision is gamma
 
-      ## TODO: allow plotting in logit space
-      if(plot.in.logit.space){
-        
-      }else{
-        
-        if(thing=='median'){
-          rinla <-  ras_med_inla[[i]]
-          rtmb  <-  ras_med_tmb[[i]]
-        }
-        if(thing=='stdev'){
-          rinla <-  ras_sdv_inla[[i]]
-          rtmb  <-  ras_sdv_tmb[[i]]
-        }
+## NOTE: also assume that intercept is the first 'beta' and that betas are listed first!
+params <- c(rep('beta', length(betas) + 1), 'logkappa', 'logtau')#, 'nug.var')
+num.dists <- length(params)
 
-##        true <- true.rast[[i]] ## in logit space
-##        values(true) <- plogis(values(true))
-      }
+par(mfrow = rep(ceiling(sqrt(num.dists)), 2))
 
-      
-      tmp <- subset(dt, period_id==i)
-      
-      # rasters
-      par(mar = c(0, 0, 1.4, 1),bty='n')
-      maxes <- max(c(as.vector(rtmb),as.vector(rinla)),na.rm=TRUE)
-      plot(rinla-rtmb, maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend=T, main=paste0('DIFFERENCE ',thing))
-      plot(simple_polygon, add = T)
-      plot(rtmb,  maxpixel=1e7, col=rainbow(100), axes=FALSE, legend.args=list(text='', side=2, font=1, line=0, cex=0.1), main='TMB',zlim=c(0,maxes))
-      plot(simple_polygon, add = T)
-      plot(rinla, maxpixel=1e7, col=rainbow(100), axes=FALSE, legend=FALSE, main='R-INLA',zlim=c(0,maxes))
-      plot(simple_polygon, add = T)
-##      plot(true, maxpixel=1e7, col=rainbow(100), axes=FALSE, legend=FALSE, main='TRUE (mean)',zlim=c(0,maxes))
-      
-      # scatter
-      par(mar = c(4, 4, 2, 2),bty='n')
-      plot(x=as.vector(rinla)[samp],y=as.vector(rtmb)[samp],xlab='R-INLA',ylab='TMB',cex=.01,pch=19,main='COMPARE')
-      lines(x=c(0,maxes),y=c(0,maxes),col='red')
+for(ii in 1:num.dists){
 
-      # plot data points over the shapefile
-      plot(simple_polygon, main='DATA LOCATIONS')
-      points( x=tmp$long,y=tmp$lat, pch=19, cex=(tmp$N / max(tmp$N)) )
+  param <- params[ii]
+  
+  ## get prior curves and posterior draws
+  if(param == 'beta'){
+    prior.mean <- alphaj.pri[1]
+    prior.sd   <- sqrt(alphaj.pri[2])
+    xlim       <- c(-3, 3) ## TODO for all plots ## prior.mean + c(-4, 4) * prior.sd
+    x.prior    <- seq(xlim[1], xlim[2], by = 0.01)
+    y.prior    <- dnorm(x.prior, mean = prior.mean, sd = prior.sd)
 
-      # residual
-      #  tmp$inla<-extract(ras_med_inla[[i]],cbind(tmp$longitude,y=tmp$latitude))
-      #  tmp$tmb<-extract(ras_med_tmb[[i]],cbind(tmp$longitude,y=tmp$latitude))
-      #  tmp$dat <- tmp$died/tmp$N
-      #  tmp$resid_inla <- tmp$dat-tmp$inla
-      #  tmp$resid_tmb  <- tmp$dat-tmp$tmb
-      #  tmp<-subset(tmp,dat<quantile(tmp$dat,.9))
-      #  plot(x=tmp$dat,y=tmp$resid_inla, pch=19,col='red',cex=.1,main='RESIDUALS')
-      #  points(x=tmp$dat,y=tmp$resid_tmb, pch=19,col='blue',cex=.1)
+    tmb.post.draws  <- alpha_tmb_draws[ii, ]
+    inla.post.draws <- pred_l[ii, ]
+    tmb.post.median <- median(tmb.post.draws)
+    inla.post.median <- median(inla.post.draws)
+    param.name <- names(res_fit$marginals.fixed)[ii]
+
+    if(param.name == 'int'){
+      true.val <- alpha
+    }else{
+      true.val <- betas[ii - 1]
     }
+
+  }
+  if(param == 'logkappa'){
+    mesh.pri   <- param2.matern.orig(mesh_s) ## theta1 = logtau, theta2 = logkappa 
+    prior.mean <- mesh.pri$theta.prior.mean[2]
+    prior.prec <- mesh.pri$theta.prior.prec[2, 2]
+    prior.sd   <- 1 / sqrt(prior.prec)
+    x.prior    <- seq(xlim[1], xlim[2], by = 0.01)
+    y.prior    <- dnorm(x.prior, mean = prior.mean, sd = prior.sd)
+
+    tmb.post.draws  <- logkappa_tmb_draws
+    inla.post.draws <- base::sample(x = res_fit$marginals.hyperpar[['Theta2 for space']][, 1],
+                                    size = ndraws,
+                                    replace = TRUE, 
+                                    res_fit$marginals.hyperpar[['Theta2 for space']][, 2])
+    tmb.post.median  <- median(tmb.post.draws)
+    inla.post.median <- median(inla.post.draws)
+    param.name <- "log kappa"
+    true.val <- logkappa
+  }
+  if(param == 'logtau'){
+    mesh.pri   <- param2.matern.orig(mesh_s) ## theta1 = logtau, theta2 = logkappa 
+    prior.mean <- mesh.pri$theta.prior.mean[1]
+    prior.prec <- mesh.pri$theta.prior.prec[1, 1]
+    prior.sd   <- 1 / sqrt(prior.prec)
+    x.prior    <- seq(xlim[1], xlim[2], by = 0.01)
+    y.prior    <- dnorm(x.prior, mean = prior.mean, sd = prior.sd)
+
+    tmb.post.draws <- logtau_tmb_draws
+    inla.post.draws <- base::sample(x = res_fit$marginals.hyperpar[['Theta1 for space']][, 1],
+                                    size = ndraws,
+                                    replace = TRUE, 
+                                    res_fit$marginals.hyperpar[['Theta1 for space']][, 2])
+    tmb.post.median <- median(tmb.post.draws)
+    inla.post.median <- median(inla.post.draws)
+    param.name <- "log tau"
+    true.val <- logtau
+  }
+  if(param == 'nug.var'){
+    prior.shape  <- nug.pri[1]
+    prior.iscale <- nug.pri[2]
+    x.prior <- seq(0, 5, by = 0.01) ## TODO automate this?
+    y.prior <- dgamma(x.prior, shape = prior.shape, scale = 1 / prior.iscale)
+
+  }
+
+  ## get posterior samples (we'll use density curves)
+  tmb.dens <- density(tmb.post.draws)
+  inla.dens <- density(inla.post.draws)
+  xrange <- range(c(x.prior, tmb.dens$x, inla.dens$x))
+  yrange <- range(c(y.prior, tmb.dens$y, inla.dens$y))
+
+  prior.col <- "black"
+  tmb.col <- "red"
+  inla.col <- "blue"
+
+  ## setup plot and plot prior
+  plot(x.prior, y.prior, pch = ".", col = prior.col, main = param.name,
+       xlim = xrange, ylim = yrange)
+  lines(x.prior, y.prior, col = prior.col)
+
+  ## plot tmb post and data
+  lines(tmb.dens$x,tmb.dens$y, col = tmb.col)
+  points(tmb.post.draws, rep(0, ndraws), col = alpha(tmb.col, 0.25), cex = 2, pch = '|')
+  abline(v = tmb.post.median, col = tmb.col, lwd = 2)
+  
+  ## plot inla post and data
+  lines(inla.dens$x,inla.dens$y, col = inla.col)
+  points(inla.post.draws, rep(0, ndraws), col = alpha(inla.col, 0.25), cex = 2, pch = '|')
+  abline(v = inla.post.median, col = inla.col, lwd = 2)
+
+  ## plot truth
+  abline(v = true.val, col = prior.col, lwd = 2)
+  
+  ## add legend
+  legend("topright", legend = c("prior", "tmb", "inla"), col = c(prior.col, tmb.col, inla.col), lwd = rep(2, 3))
 }
 
+
+
+
+## plot results in logit space or in prevalence space?
+plot.in.logit.space <- FALSE
+
+## setup layout of main plots
+layout(matrix(1:(nperiods * 2 * 5), (nperiods * 2), 5, byrow = TRUE))
+
+## randomly select pixels for plotting tmb v inla scatter
+samp <- sample(cellIdx(ras_med_inla[[1]]),1e4) 
+
+for(i in 1:nperiods){ ## for s-t
+
+  ## TODO: allow plotting in logit space
+  if(plot.in.logit.space){
+    
+  }else{
+
+    for(thing in c('median','stdev')){ 
+      
+      if(thing=='median'){
+        rinla <- ras_med_inla[[i]]
+        rtmb  <- ras_med_tmb[[i]]
+        true  <- invlogit(true.rast[[i]])
+      }
+      if(thing=='stdev'){
+        rinla <- ras_sdv_inla[[i]]
+        rtmb  <- ras_sdv_tmb[[i]]
+      }
+      
+      tmp <- subset(dt, period_id==i) ## for s-t
+      
+      ## rasters: true, tmb, inla, inla - tmb with data locs
+      par(mar = c(0, 0, 1.4, 2),bty='n')
+      maxes <- max(c(as.vector(rtmb), as.vector(rinla), as.vector(true)), na.rm=TRUE)
+      mins  <- min(c(as.vector(rtmb), as.vector(rinla), as.vector(true)), na.rm=TRUE)
+      zrange <- c(mins, maxes)
+      if(thing == 'median'){
+        plot(true, maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend=T, legend.width = 3, main=paste0('TRUE ', thing) ,zlim=zrange)
+        plot(simple_polygon, add = T)
+      }else{
+        plot.new();abline(a = 0, b = 1, lwd = 2);abline(a = 1, b = -1, lwd = 2) ## no true sd surface to plot....
+      }
+      plot(rtmb,  maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend.width = 3,
+           legend.args=list(text='', side=2, font=1, line=0, cex=0.1), main=paste0('TMB: ', thing), zlim=zrange)
+      plot(simple_polygon, add = T)
+      plot(rinla, maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend=FALSE, main=paste0('R-INLA: ', thing), zlim=zrange)
+      plot(simple_polygon, add = T)
+      plot(rinla-rtmb, maxpixel=1e7, col=rev(viridis(100)), axes=FALSE, legend=T,  legend.width = 3, main=paste0('DIFFERENCE: ',thing))
+      plot(simple_polygon, add = T)
+      points( x=tmp$long,y=tmp$lat, pch=19, cex=(tmp$N / max(tmp$N)) )
+      
+      ## pixel scatter
+      par(mar = c(4, 4, 2, 2),bty='n')
+      plot(x=as.vector(rinla)[samp],y=as.vector(rtmb)[samp],xlab='R-INLA',ylab='TMB',cex=.01,pch=19,main=paste0('(sub)SCATTER COMPARE: ', thing))
+      lines(x=zrange,y=zrange,col='red')
+
+      ## residual
+      ##  tmp$inla<-extract(ras_med_inla[[i]],cbind(tmp$longitude,y=tmp$latitude))
+      ##  tmp$tmb<-extract(ras_med_tmb[[i]],cbind(tmp$longitude,y=tmp$latitude))
+      ##  tmp$dat <- tmp$died/tmp$N
+      ##  tmp$resid_inla <- tmp$dat-tmp$inla
+      ##  tmp$resid_tmb  <- tmp$dat-tmp$tmb
+      ##  tmp<-subset(tmp,dat<quantile(tmp$dat,.9))
+      ##  plot(x=tmp$dat,y=tmp$resid_inla, pch=19,col='red',cex=.1,main='RESIDUALS')
+      ##  points(x=tmp$dat,y=tmp$resid_tmb, pch=19,col='blue',cex=.1)
+    }
+  }
+}
+
+
+## now make caterpillar plots
+
 layout(matrix(1, 1, 1, byrow = TRUE))
-####
+
 #### Compare mean and distribution of random effects
 summ_gp_tmb  <- t(cbind((apply(epsilon_draws,1,quantile,probs=c(.1,.5,.9)))))
 summ_gp_inla <- t(cbind((apply(pred_s,1,quantile,probs=c(.1,.5,.9)))))
-  # all time-space random effects
+## all time-space random effects
 
 plot_d <- data.table(tmb_median = summ_gp_tmb[,2],inla_median = summ_gp_inla[,2],
                      tmb_low    = summ_gp_tmb[,1],inla_low    = summ_gp_inla[,1],
                      tmb_up     = summ_gp_tmb[,3],inla_up     = summ_gp_inla[,3])
 
-plot_d$period <- factor(rep(1:4,each=nrow(plot_d)/4))
-plot_d$loc    <- rep(1:(nrow(plot_d)/4),rep=4)
+plot_d$period <- factor(rep(1:nperiods, each=nrow(plot_d)/nperiods))
+plot_d$loc    <- rep(1:(nrow(plot_d)/nperiods), rep=nperiods)
 
 if(nrow(plot_d)>2500)
   plot_d <- plot_d[sample(nrow(plot_d),2500,replace=F),]
@@ -765,7 +995,7 @@ ggplot(plot_d, aes(x=tmb_median,y=inla_median,col=period)) + theme_bw() +
   geom_point() + geom_line(aes(group=loc)) + geom_abline(intercept=0,slope=1,col='red') +
   ggtitle('Posterior Medians of Random Effects at Mesh Nodes, TMB v R-INLA. Connected dots same location different periods. ')
 
-# plot locations where they are different, are they near or far from data?
+## plot locations where they are different, are they near or far from data?
 plot_d[, absdiff := abs(tmb_median-inla_median)]
 nodelocs <- do.call("rbind", replicate(4, mesh_s$loc, simplify = FALSE))
 biggdiff <- unique(nodelocs[which(plot_d$absdiff>quantile(plot_d$absdiff,prob=0.80)),])
@@ -774,14 +1004,17 @@ nodelocs <- cbind(nodelocs,plot_d)
 if(nrow(nodelocs)>2500)
   nodelocs <- nodelocs[sample(nrow(nodelocs),2500,replace=FALSE),]
 
-par(mfrow=c(2,2))
-for(i in 1:4){
+par(mfrow=rep(ceiling(sqrt(nperiods)),2))
+for(i in 1:nperiods){
   plot(simple_polygon, main='Mesh nodes sized by abs difference TMB and R-INLA')
   points(x=dt$longitude[dt$period_id==i],y=dt$latitude[dt$period_id==i], pch=19, cex=0.1)
   points(x=nodelocs$V1[nodelocs$period==i],y=nodelocs$V2[nodelocs$period==i], pch=1, cex=nodelocs$absdiff[nodelocs$period==i]*5, col='red')
+  ## add data locations
+  points( x=tmp$long,y=tmp$lat, cex=(tmp$N / max(tmp$N)), pch = 16)
+
 }
 
-# catterpillar plot
+## catterpillar plot
 plot_d <- plot_d[order(period,tmb_median)]
 plot_d[,i := seq(1,.N), by = period]
 ggplot(plot_d, aes(i, tmb_median, col=i)) + theme_bw() + # [seq(1, nrow(plot_d), 5)]
@@ -792,8 +1025,4 @@ ggplot(plot_d, aes(i, tmb_median, col=i)) + theme_bw() + # [seq(1, nrow(plot_d),
 
 
 dev.off()
-
-
-    
-
 

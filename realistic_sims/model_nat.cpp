@@ -58,7 +58,7 @@ Type objective_function<Type>::operator() ()
 
   // Data (all except for X_ij is a vector of length num_i)
   DATA_VECTOR( y_i );    // Num occurrences (deaths) per binomial experiment at point i (cluster)
-  DATA_VECTOR( Exp_i );   // Trials per cluster
+  DATA_VECTOR( n_i );   // Trials per cluster
   // DATA_VECTOR( is_vr );   // Whether or not the data is VR
   DATA_MATRIX( X_ij );    // Covariate design matrix
 
@@ -141,17 +141,17 @@ Type objective_function<Type>::operator() ()
       // Likelihood contribution from birth history datas
       //if (is_vr(i) == 1){
         // Likelihood contribution from VR data
-        //PARALLEL_REGION jnll -= dpois( y_i(i), (Exp_i(i) * pi_vr * m_val(i)), true);
+        //PARALLEL_REGION jnll -= dpois( y_i(i), (n_i(i) * pi_vr * m_val(i)), true);
       //} else {
         // Likelihood contribution from non-VR data
         // Uses the dbinom_robust function, which takes the logit probability
-        PARALLEL_REGION jnll -= dbinom_robust( y_i(i), Exp_i(i), prob_i(i), true );
+        PARALLEL_REGION jnll -= dbinom_robust( y_i(i), n_i(i), prob_i(i), true );
 	//}
     }
   }
 
   // Report estimates
-  if(options[1] == 0){
+  if(options[1] == 1){
     ADREPORT(alpha_j);
     // ADREPORT(logit_pi_vr);
     ADREPORT(Epsilon_s);
