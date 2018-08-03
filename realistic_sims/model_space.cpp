@@ -26,16 +26,16 @@ using Eigen::SparseMatrix;
 
 // helper function to make sparse SPDE precision matrix
 // Inputs:
-//    logkappa: log(kappa) parameter value
-//    logtau: log(tau) parameter value
+//    log_kappa: log(kappa) parameter value
+//    log_tau: log(tau) parameter value
 //    M0, M1, M2: these sparse matrices are output from R::INLA::inla.spde2.matern()$param.inla$M*
 template<class Type>
-SparseMatrix<Type> spde_Q(Type logkappa, Type logtau, SparseMatrix<Type> M0,
+SparseMatrix<Type> spde_Q(Type log_kappa, Type log_tau, SparseMatrix<Type> M0,
                           SparseMatrix<Type> M1, SparseMatrix<Type> M2) {
     SparseMatrix<Type> Q;
-    Type kappa2 = exp(2. * logkappa);
+    Type kappa2 = exp(2. * log_kappa);
     Type kappa4 = kappa2*kappa2;
-    Q = pow(exp(logtau), 2.)  * (kappa4*M0 + Type(2.0)*kappa2*M1 + M2);
+    Q = pow(exp(log_tau), 2.)  * (kappa4*M0 + Type(2.0)*kappa2*M1 + M2);
     return Q;
 }
 
@@ -108,12 +108,12 @@ Type objective_function<Type>::operator() ()
   max_parallel_regions = 5;
 
   // Make spatial precision matrix
-  SparseMatrix<Type> Q_ss = spde_Q(logkappa, logtau, M0, M1, M2);
+  SparseMatrix<Type> Q_ss = spde_Q(log_kappa, log_tau, M0, M1, M2);
   printf("Q_ss size: %d \n", Q_ss.size());
 
   // Make transformations of some of our parameters
-  Type range     = sqrt(8.0) / exp(logkappa);
-  Type sigma     = 1.0 / sqrt(4.0 * 3.14159265359 * exp(2.0 * logtau) * exp(2.0 * logkappa));
+  Type range     = sqrt(8.0) / exp(log_kappa);
+  Type sigma     = 1.0 / sqrt(4.0 * 3.14159265359 * exp(2.0 * log_tau) * exp(2.0 * log_kappa));
   //Type trho_trans = log((1.0 + trho) / (1.0 - trho));
   //Type zrho_trans = log((1.0 + zrho) / (1.0 - zrho));
 
@@ -125,8 +125,8 @@ Type objective_function<Type>::operator() ()
 
   // Prior contribution to likelihood. Values are defaulted (for now). Only run if options[0]==1
   if(options[0] == 1) {
-   PARALLEL_REGION jnll -= dnorm(logtau,    Type(0.0), Type(1.0),   true);  // N(0,1) prior for logtau
-   PARALLEL_REGION jnll -= dnorm(logkappa,  Type(0.0), Type(1.0),   true);  // N(0,1) prior for logkappa
+   PARALLEL_REGION jnll -= dnorm(log_tau,    Type(0.0), Type(1.0),   true);  // N(0,1) prior for log_tau
+   PARALLEL_REGION jnll -= dnorm(log_kappa,  Type(0.0), Type(1.0),   true);  // N(0,1) prior for log_kappa
    //if(num_t > 1) {
    //  PARALLEL_REGION jnll -= dnorm(trho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
    //}
