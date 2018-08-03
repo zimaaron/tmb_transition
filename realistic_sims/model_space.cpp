@@ -143,7 +143,7 @@ Type objective_function<Type>::operator() ()
   //if (num_t == 1 & num_z == 1)  {
   //printf("GP FOR SPACE  ONLY \n");
 
-  PARALLEL_REGION jnll += GMRF(Q_ss,false)(epsilon_s);
+  PARALLEL_REGION jnll += GMRF(Q_ss)(epsilon_s);
 
   //} else if(num_t > 1 & num_z == 1) {
   //printf("GP FOR SPACE-TIME \n");
