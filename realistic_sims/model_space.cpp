@@ -54,7 +54,7 @@ Type objective_function<Type>::operator() ()
   // ////////////////////////////////////////////////////////////////////////////
   // INPUTS
   // ////////////////////////////////////////////////////////////////////////////
-  DATA_INTEGER(flag); // flag=0 => only prior
+  //DATA_INTEGER(flag); // flag=0 => only prior
 
   // Indices
   DATA_INTEGER(num_i);       // number of datapts in space-time-Z (aka STZ)
@@ -181,7 +181,7 @@ Type objective_function<Type>::operator() ()
   fe_i = X_ij * alpha_j.matrix();
 
   // Return un-normalized density on request
-  if (flag == 0) return jnll;
+  //if (flag == 0) return jnll;
 
   // Likelihood contribution from each datapoint i
   for (int i = 0; i < num_i; i++){
