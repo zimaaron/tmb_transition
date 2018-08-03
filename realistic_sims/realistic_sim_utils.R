@@ -264,6 +264,12 @@ sim.realistic.data <- function(reg,
   }
   dev.off()
 
+  ## TODO alternatively, simulate non-Gaussian field!
+  ## using RandomFields, e.g.
+  ## model <- RPopitz(RMexp(), alpha=2)
+  ## z1 <- RFsimulate(model, seq(0,2,0.01),seq(0,2,0.01),grid=T)
+  ## plot(z1, type = 'l')
+  
   ## now we can make the iid nugget
 
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
