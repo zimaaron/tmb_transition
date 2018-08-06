@@ -134,7 +134,7 @@ Type objective_function<Type>::operator() ()
    //  PARALLEL_REGION jnll -= dnorm(zrho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
    //}
    for( int j = 0; j < alpha_j.size(); j++){
-     PARALLEL_REGION jnll -= dnorm(alpha_j(j), Type(0.0), Type(100), true); // N(0, sqrt(1/.001)) prior for fixed effects.
+     PARALLEL_REGION jnll -= dnorm(alpha_j(j), Type(0.0), Type(3.0), true); // N(0, sqrt(1/.001)) prior for fixed effects.
    }
   }
 
