@@ -102,7 +102,7 @@ Type objective_function<Type>::operator() ()
   Type jnll = 0;
 
   // print parallel info
-  max_parallel_regions = omp_get_max_threads();
+  max_parallel_regions = 1;//omp_get_max_threads();
   printf("This is thread %d\n", max_parallel_regions);
   // max_parallel_regions = 5;
 
