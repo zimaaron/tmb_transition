@@ -59,8 +59,8 @@ Type objective_function<Type>::operator() ()
   // Indices
   DATA_INTEGER(num_i);       // number of datapts in space-time-Z (aka STZ)
   DATA_INTEGER(num_s);       // number of mesh pts in space mesh
-  DATA_INTEGER(num_t);       // number of time periods
-  DATA_INTEGER(num_z);       // number of Z groups
+  //DATA_INTEGER(num_t);       // number of time periods
+  //DATA_INTEGER(num_z);       // number of Z groups
 
   // Data (each, excpect for X_ij is a vector of length num_i)
   DATA_VECTOR(y_i);          // obs successes per binomial experiment at point i (aka cluster)
@@ -105,11 +105,12 @@ Type objective_function<Type>::operator() ()
   // print parallel info
   // max_parallel_regions = omp_get_max_threads();
   // printf("This is thread %d\n", max_parallel_regions);
-  max_parallel_regions = 5;
+  max_parallel_regions = omp_get_max_threads();
+  printf("This is thread %d\n", max_parallel_regions);
 
   // Make spatial precision matrix
   SparseMatrix<Type> Q_ss = spde_Q(log_kappa, log_tau, M0, M1, M2);
-  printf("Q_ss size: %d \n", Q_ss.size());
+  //printf("Q_ss size: %d \n", Q_ss.size());
 
   // Make transformations of some of our parameters
   Type range     = sqrt(8.0) / exp(log_kappa);
