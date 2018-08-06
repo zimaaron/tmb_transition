@@ -103,9 +103,9 @@ Type objective_function<Type>::operator() ()
   Type jnll = 0;
 
   // print parallel info
-  // max_parallel_regions = omp_get_max_threads();
-  // printf("This is thread %d\n", max_parallel_regions);
-  max_parallel_regions = 5;
+  max_parallel_regions = omp_get_max_threads();
+  printf("This is thread %d\n", max_parallel_regions);
+  // max_parallel_regions = 5;
 
   // Make spatial precision matrix
   SparseMatrix<Type> Q_ss = spde_Q(log_kappa, log_tau, M0, M1, M2);
