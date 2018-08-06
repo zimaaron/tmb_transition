@@ -108,7 +108,7 @@ Type objective_function<Type>::operator() ()
 
   // Make spatial precision matrix
   SparseMatrix<Type> Q_ss = spde_Q(log_kappa, log_tau, M0, M1, M2);
-  printf("Q_ss size: %d \n", Q_ss.size());
+  //printf("Q_ss size: %d \n", Q_ss.size());
 
   // Make transformations of some of our parameters
   Type range     = sqrt(8.0) / exp(log_kappa);
@@ -133,7 +133,7 @@ Type objective_function<Type>::operator() ()
    //  PARALLEL_REGION jnll -= dnorm(zrho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
    //}
    for( int j = 0; j < alpha_j.size(); j++){
-     PARALLEL_REGION jnll -= dnorm(alpha_j(j), Type(0.0), Type(3.0), true); // N(0, sqrt(1/.001)) prior for fixed effects.
+     PARALLEL_REGION jnll -= dnorm(alpha_j(j), Type(0.0), Type(3), true); // N(0, sqrt(1/.001)) prior for fixed effects.
    }
   }
 
@@ -142,7 +142,6 @@ Type objective_function<Type>::operator() ()
   //if (num_t == 1 & num_z == 1)  {
   //printf("GP FOR SPACE  ONLY \n");
 
-  PARALLEL_REGION jnll += GMRF(Q_ss)(epsilon_s);
 
   //} else if(num_t > 1 & num_z == 1) {
   //printf("GP FOR SPACE-TIME \n");
@@ -171,6 +170,8 @@ Type objective_function<Type>::operator() ()
     //  }
     //}
   }
+
+  PARALLEL_REGION jnll += GMRF(Q_ss)(epsilon_s);
 
   // Project from mesh points to data points in order to eval likelihood at each data point
   // TODO expand this for Z
