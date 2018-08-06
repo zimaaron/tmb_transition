@@ -90,7 +90,7 @@ Type objective_function<Type>::operator() ()
   // Random effects
   PARAMETER_ARRAY(Epsilon_s); // Random effects for each STZ mesh location. Should be 3D array of dimensions num_s by num_t by num_z
 
-  printf("Epsilon_s size: %d \n", Epsilon_s.size());
+  //printf("Epsilon_s size: %d \n", Epsilon_s.size());
 
   // ////////////////////////////////////////////////////////////////////////////
   // LIKELIHOOD
@@ -124,16 +124,16 @@ Type objective_function<Type>::operator() ()
 
   // Prior contribution to likelihood. Values are defaulted (for now). Only run if options[0]==1
   if(options[0] == 1) {
-   PARALLEL_REGION jnll -= dnorm(log_tau,    Type(0.0), Type(1.0),   true);  // N(0,1) prior for log_tau
-   PARALLEL_REGION jnll -= dnorm(log_kappa,  Type(0.0), Type(1.0),   true);  // N(0,1) prior for log_kappa
+    jnll -= dnorm(log_tau,    Type(0.0), Type(1.0),   true);  // N(0,1) prior for log_tau
+    jnll -= dnorm(log_kappa,  Type(0.0), Type(1.0),   true);  // N(0,1) prior for log_kappa
    //if(num_t > 1) {
-   //  PARALLEL_REGION jnll -= dnorm(trho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
+   //   jnll -= dnorm(trho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
    //}
    //if(num_z > 1) {
-   //  PARALLEL_REGION jnll -= dnorm(zrho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
+   //   jnll -= dnorm(zrho_trans, Type(0.0), Type(2.582), true);  // N(0, sqrt(1/.15) prior on log((1+rho)/(1-rho))
    //}
    for( int j = 0; j < alpha_j.size(); j++){
-     PARALLEL_REGION jnll -= dnorm(alpha_j(j), Type(0.0), Type(3), true); // N(0, sqrt(1/.001)) prior for fixed effects.
+      jnll -= dnorm(alpha_j(j), Type(0.0), Type(3), true); // N(0, sqrt(1/.001)) prior for fixed effects.
    }
   }
 
@@ -145,19 +145,19 @@ Type objective_function<Type>::operator() ()
 
   //} else if(num_t > 1 & num_z == 1) {
   //printf("GP FOR SPACE-TIME \n");
-  //PARALLEL_REGION jnll += SEPARABLE(AR1(trho),GMRF(Q_ss,false))(Epsilon_stz);
+  // jnll += SEPARABLE(AR1(trho),GMRF(Q_ss,false))(Epsilon_stz);
   //} else if (num_t == 1 & num_z > 1) {
   //printf("GP FOR SPACE-Z \n");
-  //PARALLEL_REGION jnll += SEPARABLE(AR1(zrho),GMRF(Q_ss,false))(Epsilon_stz);
+  // jnll += SEPARABLE(AR1(zrho),GMRF(Q_ss,false))(Epsilon_stz);
   //} else if (num_t > 1 & num_z > 1) {
   //  printf("GP FOR SPACE-TIME-Z \n");
-  //  PARALLEL_REGION jnll += SEPARABLE(AR1(zrho),SEPARABLE(AR1(trho),GMRF(Q_ss,false)))(Epsilon_stz);
+  //   jnll += SEPARABLE(AR1(zrho),SEPARABLE(AR1(trho),GMRF(Q_ss,false)))(Epsilon_stz);
   //}
 
   // Transform GMRFs and make vector form
   for(int s = 0; s < num_s; s++){
     // if(num_t == 1){
-    epsilon_s(s) = Epsilon_s(s);
+    epsilon_s[s] = Epsilon_s(s);
       // }
     //for(int t = 0; t < num_t; t++){
     //  if(num_z == 1) {
@@ -171,7 +171,7 @@ Type objective_function<Type>::operator() ()
     //}
   }
 
-  PARALLEL_REGION jnll += GMRF(Q_ss)(epsilon_s);
+   jnll += GMRF(Q_ss)(epsilon_s);
 
   // Project from mesh points to data points in order to eval likelihood at each data point
   // TODO expand this for Z
@@ -187,7 +187,7 @@ Type objective_function<Type>::operator() ()
   for (int i = 0; i < num_i; i++){
     prob_i(i) = fe_i(i) + projepsilon_i(i);
     if(!isNA(y_i(i))){
-      PARALLEL_REGION jnll -= dbinom_robust( y_i(i), n_i(i), invlogit(prob_i(i)), true );// * w_i(i);
+       jnll -= dbinom_robust( y_i(i), n_i(i), prob_i(i), true );// * w_i(i);
     }
   }
 
