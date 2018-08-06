@@ -105,12 +105,11 @@ Type objective_function<Type>::operator() ()
   // print parallel info
   // max_parallel_regions = omp_get_max_threads();
   // printf("This is thread %d\n", max_parallel_regions);
-  max_parallel_regions = omp_get_max_threads();
-  printf("This is thread %d\n", max_parallel_regions);
+  max_parallel_regions = 5;
 
   // Make spatial precision matrix
   SparseMatrix<Type> Q_ss = spde_Q(log_kappa, log_tau, M0, M1, M2);
-  //printf("Q_ss size: %d \n", Q_ss.size());
+  printf("Q_ss size: %d \n", Q_ss.size());
 
   // Make transformations of some of our parameters
   Type range     = sqrt(8.0) / exp(log_kappa);
@@ -120,7 +119,7 @@ Type objective_function<Type>::operator() ()
 
   // Define objects for derived values
   vector<Type> fe_i(num_i);                         // main effect X_ij %*% t(alpha_j)
-  vector<Type> epsilon_s(num_s * num_t * num_z);  // Epsilon_stz unlisted into a vector for easier matrix multiplication
+  vector<Type> epsilon_s(num_s);// * num_t * num_z);  // Epsilon_stz unlisted into a vector for easier matrix multiplication
   vector<Type> projepsilon_i(num_i);                // value of gmrf at data points
   vector<Type> prob_i(num_i);                       // Logit estimated prob for each point i
 
