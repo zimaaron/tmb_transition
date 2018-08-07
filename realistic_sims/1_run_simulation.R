@@ -481,7 +481,7 @@ if(use_sim_data) X_xp = as.matrix(cbind(1, dt[,covs[, name], with=FALSE]))
 ## using Nat's template - b/c it works!
 
 
-templ <- "model_nat"
+templ <- "model_space"
 setwd("/homes/azimmer/tmb_transition/realistic_sims")
 TMB::compile(paste0('./', templ,".cpp"))
 dyn.load( dynlib(templ) )
@@ -490,27 +490,32 @@ dyn.load( dynlib(templ) )
 data_full <- list(num_i = nrow(dt),  # Total number of observations
                   num_s = mesh_s$n,  # Number of vertices in SPDE mesh
                   y_i   = dt[,Y],    # Number of observed deaths in the cluster
-                  Exp_i = dt[,N],    # Number of exposures in the cluster
+                  n_i = dt[,N],    # Number of exposures in the cluster
                   X_ij  = X_xp,               # Covariate design matrix
                   M0    = spde$param.inla$M0, # SPDE sparse matrix
                   M1    = spde$param.inla$M1, # SPDE sparse matrix
                   M2    = spde$param.inla$M2, # SPDE sparse matrix
                   Aproj = A.proj,             # Projection matrix
-                  options = c(1,0)            # See cpp code for options
+                  options = c(1, # use priors 
+                              0, # adreport
+                              1  # fit with nugget 
+                              )            
                   )
 
 ## Specify starting values for TMB parameters
 tmb_params <- list(alpha_j   = rep(0,ncol(X_xp)), # Alphas for FE parameters
-                   log_tau   = 1.0,           # Log inverse of tau (Epsilon)
-                   log_kappa = 1.0,         # Matern range parameter
-                   Epsilon_s = matrix(1,nrow=nodes,ncol=1) # GP locations
+                   log_tau   = 1.0, # Log inverse of tau (Epsilon)
+                   log_kappa = 1.0, # Matern range parameter
+                   Epsilon_s = matrix(1,nrow=nodes,ncol=1), # GP locations
+                   log_nugget_sigma = -1.0, # log of nugget sd
+                   nug_i = rep(0, nrow(dt)) # vector of nugget random effects
                    )
 
 
 ## make the autodiff generated liklihood func & gradient
 obj <- MakeADFun(data=data_full,
                  parameters=tmb_params,
-                 random=('Epsilon_s'),
+                 random=('Epsilon_s', 'nug_i'),
                  hessian=TRUE,
                  DLL=templ)
 
@@ -522,20 +527,11 @@ obj <- MakeADFun(data=data_full,
 ptm <- proc.time()[3]
 opt0 <- do.call("nlminb",list(start       =    obj$par,
                               objective   =    obj$fn,
-                              gradient    =    obj$gr))
-                        ##    control     =    list(eval.max=1e4, iter.max=1e4, trace=1)))
-fit_time_tmb<- proc.time()[3] - ptm
-
-
-
-
-## Run optimizer
-ptm <- proc.time()[3]
-opt0 <- do.call("nlminb",list(start       =    obj$par,
-                              objective   =    obj$fn,
-                              gradient    =    obj$gr))
-                        ##    control     =    list(eval.max=1e4, iter.max=1e4, trace=1)))
-fit_time_tmb<- proc.time()[3] - ptm
+                              gradient    =    obj$gr,
+                              lower = rep(-10, ncol(X_xp) + 3),
+                              upper = rep(10, ncol(X_xp) + 3),
+                              control     =    list(trace=1)))
+fit_time_tmb <- proc.time()[3] - ptm
 
 ## Get standard errors
 SD0 = TMB::sdreport(obj,getJointPrecision=TRUE)
