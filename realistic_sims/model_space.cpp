@@ -1,17 +1,15 @@
 // /////////////////////////////////////////////////////////////////////////////
-// Roy Burstein, Aaron Osgood-Zimmerman, Nat Henry
-// March 2018
+// RB AOZ
+// 2018
 // Template file for fitting space only models
 // /////////////////////////////////////////////////////////////////////////////
 
 // /////////////////////////////////////////////////////////////////////////////
 // NOTES:
 // 1. Type `Type` is a special TMB type that should be used for all variables, except `int` can be used as well
-// 2. In our nomenclature, Z is a third interaction (ie age) which defaults to AR1
-// 3. Requires same space mesh for all time-Z points
-// 4. Anything in the density namespace (ie SEPARABLE) returns the negative log likelihood and is thus added to accumulator
+// 2. Anything in the density namespace (ie SEPARABLE) returns the negative log likelihood and is thus added to accumulator
 //    also, other density function such as dnorm and dbinom return positive log likelihood and are thus subtracted away.
-// 5. ref https://github.com/nmmarquez/re_simulations/blob/master/inla/sta.cpp
+// 3. ref https://github.com/nmmarquez/re_simulations/blob/master/inla/sta.cpp
 //        https://github.com/nmmarquez/re_simulations/blob/master/inla/SPDEAR1AR1.R
 // /////////////////////////////////////////////////////////////////////////////
 
@@ -84,7 +82,8 @@ Type objective_function<Type>::operator() ()
   // ~~~~~~~~~~~
   
   // objective function -- joint negative log-likelihood
-  Type jnll = 0;
+  //Type jnll = 0;
+  parallel_accumulator<Type> jnll(this);
 
   // print parallel info
   max_parallel_regions = omp_get_max_threads();
