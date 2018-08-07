@@ -50,6 +50,9 @@ Type objective_function<Type>::operator() ()
   // ~~~~~~~~~~~
   // FIRST, we define params/values/data that will be passed in from R
   // ~~~~~~~~~~~
+
+  // normalization flag
+  DATA_INTEGER( flag ); // flag=0 => no data contribution added to jnll
   
   // Indices
   DATA_INTEGER( num_i );   // Number of data points in space
