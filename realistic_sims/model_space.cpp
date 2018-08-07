@@ -119,27 +119,12 @@ Type objective_function<Type>::operator() ()
 
   // ~~~~~~~~~~~
   // THIRD, we calculate the contribution to the likelihood from:
-  // 1) data
+  // 1) priors
   // 2) GP field
-  // 3) priors
+  // 3) data
   // ~~~~~~~~~~~
 
-  // 1) Likelihood contribution from each datapoint i
-  for (int i = 0; i < num_i; i++){
-    logit_prob_i(i) = fe_i(i) + projepsilon_i(i) + nug_i(i);
-    if(!isNA(y_i(i))){
-      // Likelihood contribution from non-VR binomial data
-      // Uses the dbinom_robust function, which takes the logit probability
-      jnll -= dbinom_robust( y_i(i), n_i(i), logit_prob_i(i), true );
-    }
-  }
-  
-  // 2) 'GP' field contribution (i.e. log-lik of Gaussian-Markov random fields, GMRFs)
-  // NOTE: likelihoods from namespace 'density' already return NEGATIVE log-liks so we add
-  //       other likelihoods return positibe log-liks
-  jnll += GMRF(Q_ss)(epsilon_s);
-
-  // 3) Prior contributions to joint likelihood (if option[0]==1)
+  // 1) Prior contributions to joint likelihood (if option[0]==1)
   if(options[0] == 1) {
     jnll -= dnorm(log_tau,   Type(0.0), Type(1.0), true); // N(0,1) prior for logtau
     jnll -= dnorm(log_kappa, Type(0.0), Type(1.0), true); // N(0,1) prior for logkappa
@@ -157,7 +142,30 @@ Type objective_function<Type>::operator() ()
     }
   }
 
+  // 2) 'GP' field contribution (i.e. log-lik of Gaussian-Markov random fields, GMRFs)
+  // NOTE: likelihoods from namespace 'density' already return NEGATIVE log-liks so we add
+  //       other likelihoods return positibe log-liks
+  jnll += GMRF(Q_ss)(epsilon_s);
+
+  
+  // 3) Likelihood contribution from each datapoint i
+
+  if (flag == 0) return jnll; // without data ll contrib
+
+  for (int i = 0; i < num_i; i++){
+    logit_prob_i(i) = fe_i(i) + projepsilon_i(i) + nug_i(i);
+    if(!isNA(y_i(i))){
+      // Likelihood contribution from non-VR binomial data
+      // Uses the dbinom_robust function, which takes the logit probability
+      jnll -= dbinom_robust( y_i(i), n_i(i), logit_prob_i(i), true );
+    }
+  }
+  
+
+  // ~~~~~~~~~~~
+  // ADREPORT
   // Report estimates (if options[1]==1)
+  // ~~~~~~~~~~~
   if(options[1] == 1){
     ADREPORT(alpha_j);
     ADREPORT(Epsilon_s);

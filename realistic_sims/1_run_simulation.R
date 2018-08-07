@@ -499,7 +499,8 @@ data_full <- list(num_i = nrow(dt),  # Total number of observations
                   options = c(1, # use priors 
                               0, # adreport
                               1  # fit with nugget 
-                              )            
+                              ),
+                  flag = 1 # normalization flag
                   )
 
 ## Specify starting values for TMB parameters
@@ -515,12 +516,12 @@ tmb_params <- list(alpha_j   = rep(0,ncol(X_xp)), # Alphas for FE parameters
 ## make the autodiff generated liklihood func & gradient
 obj <- MakeADFun(data=data_full,
                  parameters=tmb_params,
-                 random=('Epsilon_s', 'nug_i'),
+                 random=c('Epsilon_s', 'nug_i'),
                  hessian=TRUE,
                  DLL=templ)
 
 ## should we use the normalization flag?
-## obj <- normalize(obj, flag="flag")
+obj <- normalize(obj, flag="flag")
 
 
 ## Run optimizer
