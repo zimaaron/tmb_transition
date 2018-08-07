@@ -74,6 +74,7 @@ Type objective_function<Type>::operator() ()
   PARAMETER( log_tau );          // Log of INLA tau param (precision of space covariance matrix)
   PARAMETER( log_kappa );        // Log of INLA kappa (related to spatial correlation and range)
   PARAMETER( log_nugget_sigma ); // Log of SD for irreducible nugget variance
+  PARAMETER_VECTOR( nug_i );     // random effect nugget for each observation
   
   // Random effects
   PARAMETER_ARRAY( Epsilon_s );  // Random effect for each spatial mesh location. Currently a 1d array of num_s
@@ -104,7 +105,6 @@ Type objective_function<Type>::operator() ()
   vector<Type> logit_prob_i(num_i);      // Logit estimated prob for each point i
   vector<Type> epsilon_s(num_s);         // Epsilon_s (array) unlisted into a vector for easier matrix multiplication
   vector<Type> projepsilon_i(num_i);     // value of gmrf at data points
-  vector<Type> nug_i(num_i);          // value of nugget at data point
   
   // evaluate fixed effects for alpha_j values
   fe_i = X_ij * alpha_j.matrix(); 
@@ -146,7 +146,7 @@ Type objective_function<Type>::operator() ()
    for( int j = 0; j < alpha_j.size(); j++){
      jnll -= dnorm(alpha_j(j), Type(0.0), Type(3), true); // N(0, sqrt(1/.001)) prior for fixed effects.
    }
-   jnll -= dnorm(log_nugget_sigma, Type(-4.0), Type(2.0),true); // N(-4, 1) for log(sd_nugget)
+   jnll -= dnorm(log_nugget_sigma, Type(-4.0), Type(2.0), true); // N(-4, 2) for log(sd_nugget)
   }
 
   // nugget contribution to the likelihood
