@@ -87,7 +87,8 @@ Type objective_function<Type>::operator() ()
   //parallel_accumulator<Type> jnll(this); // parallelize jnll NOTE: seems to break with omp>1 and mkl >=1
 
   // print parallel info
-  max_parallel_regions = omp_get_max_threads();
+  //  max_parallel_regions = omp_get_max_threads();
+  max_parallel_regions = 1;
   printf("This is thread %d\n", max_parallel_regions);
 
   // Make spatial precision matrix
@@ -151,14 +152,13 @@ Type objective_function<Type>::operator() ()
   if(options[2] == 1 ){
     printf("Nugget \n");
     for (int i = 0; i < num_i; i++){
-      jnll -= dnorm(nug_i(i), Type(0.0), nugget_sigma ), true);
+      jnll -= dnorm(nug_i(i), Type(0.0), nugget_sigma, true);
     }
   }
 
   // Report estimates (if options[1]==1)
   if(options[1] == 1){
     ADREPORT(alpha_j);
-    // ADREPORT(logit_pi_vr);
     ADREPORT(Epsilon_s);
   }
 
