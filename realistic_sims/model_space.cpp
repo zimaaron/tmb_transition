@@ -126,7 +126,7 @@ Type objective_function<Type>::operator() ()
 
   // 1) Likelihood contribution from each datapoint i
   for (int i = 0; i < num_i; i++){
-    logit_prob_i(i) = fe_i(i) + projepsilon_i(i);
+    logit_prob_i(i) = fe_i(i) + projepsilon_i(i) + nug_i(i);
     if(!isNA(y_i(i))){
       // Likelihood contribution from non-VR binomial data
       // Uses the dbinom_robust function, which takes the logit probability
@@ -146,6 +146,7 @@ Type objective_function<Type>::operator() ()
    for( int j = 0; j < alpha_j.size(); j++){
      jnll -= dnorm(alpha_j(j), Type(0.0), Type(3), true); // N(0, sqrt(1/.001)) prior for fixed effects.
    }
+   jnll -= dnorm(log_nugget_sigma, Type(-4.0), Type(2.0),true); // N(-4, 1) for log(sd_nugget)
   }
 
   // nugget contribution to the likelihood
