@@ -83,10 +83,10 @@ Type objective_function<Type>::operator() ()
   
   // objective function -- joint negative log-likelihood
   //Type jnll = 0;
-  parallel_accumulator<Type> jnll(this);
+  parallel_accumulator<Type> jnll(this); // parallelize jnll
 
   // print parallel info
-  max_parallel_regions = omp_get_max_threads();
+  max_parallel_regions = 4; //omp_get_max_threads();
   printf("This is thread %d\n", max_parallel_regions);
 
   // Make spatial precision matrix
