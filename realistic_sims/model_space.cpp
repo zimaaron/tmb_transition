@@ -61,21 +61,22 @@ Type objective_function<Type>::operator() ()
   DATA_MATRIX( X_ij );  // Covariate design matrix
 
   // SPDE objects
-  DATA_SPARSE_MATRIX(M0);
-  DATA_SPARSE_MATRIX(M1);
-  DATA_SPARSE_MATRIX(M2);
-  DATA_SPARSE_MATRIX(Aproj);   // Used to project spatial mesh to data locations
+  DATA_SPARSE_MATRIX( M0 );
+  DATA_SPARSE_MATRIX( M1 );
+  DATA_SPARSE_MATRIX( M2 );
+  DATA_SPARSE_MATRIX( Aproj );   // Used to project spatial mesh to data locations
 
   // Options
   DATA_VECTOR( options );
 
   // Fixed effects
-  PARAMETER_VECTOR(alpha_j); // Fixed effect coefficients, including intercept as first index
-  PARAMETER(log_tau);        // Log of INLA tau param (precision of space covariance matrix)
-  PARAMETER(log_kappa);      // Log of INLA kappa (related to spatial correlation and range)
-
+  PARAMETER_VECTOR( alpha_j );   // Fixed effect coefficients, including intercept as first index
+  PARAMETER( log_tau );          // Log of INLA tau param (precision of space covariance matrix)
+  PARAMETER( log_kappa );        // Log of INLA kappa (related to spatial correlation and range)
+  PARAMETER( log_nugget_sigma ); // Log of SD for irreducible nugget variance
+  
   // Random effects
-  PARAMETER_ARRAY(Epsilon_s);  // Random effect for each spatial mesh location. Currently a 1d array of num_s
+  PARAMETER_ARRAY( Epsilon_s );  // Random effect for each spatial mesh location. Currently a 1d array of num_s
 
   // ~~~~~~~~~~~
   // SECOND, we define all other objects that we need internally
@@ -95,13 +96,15 @@ Type objective_function<Type>::operator() ()
   // Transform some of our parameters
   Type range = sqrt(8.0) / exp(log_kappa);
   Type sigma = 1.0 / sqrt(4.0 * 3.14159265359 * exp(2.0 * log_tau) * exp(2.0 * log_kappa));
+  Type nugget_sigma  = exp(log_nugget_sigma);
 
   // Define objects for derived values
   vector<Type> fe_i(num_i);              // main effect X_ij %*% t(alpha_j)
   vector<Type> logit_prob_i(num_i);      // Logit estimated prob for each point i
   vector<Type> epsilon_s(num_s);         // Epsilon_s (array) unlisted into a vector for easier matrix multiplication
   vector<Type> projepsilon_i(num_i);     // value of gmrf at data points
-
+  vector<Type> nug_i(num_i);          // value of nugget at data point
+  
   // evaluate fixed effects for alpha_j values
   fe_i = X_ij * alpha_j.matrix(); 
   
@@ -126,22 +129,30 @@ Type objective_function<Type>::operator() ()
     if(!isNA(y_i(i))){
       // Likelihood contribution from non-VR binomial data
       // Uses the dbinom_robust function, which takes the logit probability
-      PARALLEL_REGION jnll -= dbinom_robust( y_i(i), n_i(i), logit_prob_i(i), true );
+      jnll -= dbinom_robust( y_i(i), n_i(i), logit_prob_i(i), true );
     }
   }
   
   // 2) 'GP' field contribution (i.e. log-lik of Gaussian-Markov random fields, GMRFs)
   // NOTE: likelihoods from namespace 'density' already return NEGATIVE log-liks so we add
   //       other likelihoods return positibe log-liks
-  PARALLEL_REGION jnll += GMRF(Q_ss)(epsilon_s);
+  jnll += GMRF(Q_ss)(epsilon_s);
 
   // 3) Prior contributions to joint likelihood (if option[0]==1)
   if(options[0] == 1) {
-   PARALLEL_REGION jnll -= dnorm(log_tau,   Type(0.0), Type(1.0), true); // N(0,1) prior for logtau
-   PARALLEL_REGION jnll -= dnorm(log_kappa, Type(0.0), Type(1.0), true); // N(0,1) prior for logkappa
+    jnll -= dnorm(log_tau,   Type(0.0), Type(1.0), true); // N(0,1) prior for logtau
+    jnll -= dnorm(log_kappa, Type(0.0), Type(1.0), true); // N(0,1) prior for logkappa
    for( int j = 0; j < alpha_j.size(); j++){
-     PARALLEL_REGION jnll -= dnorm(alpha_j(j), Type(0.0), Type(3), true); // N(0, sqrt(1/.001)) prior for fixed effects.
+     jnll -= dnorm(alpha_j(j), Type(0.0), Type(3), true); // N(0, sqrt(1/.001)) prior for fixed effects.
    }
+  }
+
+  // nugget contribution to the likelihood
+  if(options[2] == 1 ){
+    printf("Nugget \n");
+    for (int i = 0; i < num_i; i++){
+      jnll -= dnorm(nug_i(i), Type(0.0), nugget_sigma ), true);
+    }
   }
 
   // Report estimates (if options[1]==1)
