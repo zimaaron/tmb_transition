@@ -648,7 +648,7 @@ res_fit <- inla(formula,
                 control.inla = list(int.strategy = 'eb', h = 1e-3, tolerance = 1e-6),
                 control.compute=list(config = TRUE),
                 family = 'binomial',
-                num.threads = ncores, ##TODO 
+                num.threads = cores, #
                 Ntrials = dt$N,
                 weights = rep(1, nrow(dt)),
                 verbose = TRUE,
