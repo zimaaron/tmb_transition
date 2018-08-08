@@ -148,7 +148,7 @@ Type objective_function<Type>::operator() ()
   // 2) 'GP' field contribution (i.e. log-lik of Gaussian-Markov random fields, GMRFs)
   // NOTE: likelihoods from namespace 'density' already return NEGATIVE log-liks so we add
   //       other likelihoods return positibe log-liks
-  jnll += GMRF(Q_ss)(epsilon_s,false);
+  jnll += GMRF(Q_ss, false)(epsilon_s);
 
   
   // 3) Likelihood contribution from each datapoint i
