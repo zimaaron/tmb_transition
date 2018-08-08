@@ -61,6 +61,10 @@ qsub_sim <- function(iter, ## if looping through muliple models, used to give di
 rspde <- function (coords, kappa, variance = 1, alpha = 2, n = 1, mesh,
                    verbose = FALSE, seed, return.attributes = FALSE)
 {
+
+  if(is.null(seed)) seed = 0 ## If ‘seed=0L’ then GMRFLib will set the seed
+                             ## intelligently/at 'random'
+  
     t0 <- Sys.time()
     theta <- c(-0.5 * log(4 * pi * variance * kappa^2), log(kappa))
     if (verbose)
