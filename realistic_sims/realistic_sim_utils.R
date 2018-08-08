@@ -124,7 +124,7 @@ sim.realistic.data <- function(reg,
                                simple_raster,
                                simple_polygon, 
                                out.dir,
-                               seed){
+                               seed = NULL){
 
   ## set seed if required
   if(!is.null(seed)) set.seed(seed)
