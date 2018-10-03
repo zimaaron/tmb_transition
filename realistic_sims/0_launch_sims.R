@@ -59,46 +59,106 @@ source('./realistic_sims/realistic_sim_utils.R')
 
 ## this list should align with the args in 1_run_simulation.R
 
-reg <- 'nga'## commandArgs 4
-year_list <- 2000 ## commandArgs 5
-cov_names <- "c('access2', 'distrivers', 'evi'   , 'mapincidence')" 
-cov_measures <- "c('mean'   , 'mean'      , 'median', 'mean')"
-betas <- "c(.5, -1, 1, -.5)"
-alpha <- 0
-sp.range <-  sqrt(8)     ## commandArgs 10 sqrt(8)  ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
-sp.var <- 0.5            ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
-sp.alpha <- 2.0          ## matern smoothness = sp.alpha - 1 (for R^2 domain)
-nug.var <- .5 ^ 2        ## nugget variance
-t.rho <-  0.8            ## annual temporal auto-corr
-mesh_s_max_edge <- c("c(0.2,5)",
-                     "c(0.3,5)") ## commandArgs 15
-n.clust <-  50                   ## clusters PER TIME slice
-m.clust <- 35                    ## mean number of obs per cluster (poisson)
-sample.strat <- 'random'         ## random or by population for now. ## TODO cluser design
-cores <- 5
-ndraws <- 250                    ## commandArgs 20
+## loopvars 1
+reg <- 'nga'
 
-loopvars <- expand.grid(reg,
+## loopvars 
+year_list <- 2000 
+
+## loopvars 3
+cov_names <- "c('access2', 'distrivers', 'evi'   , 'mapincidence')" 
+
+## loopvars 4
+cov_measures <- "c('mean'   , 'mean'      , 'median', 'mean')"
+
+## loopvars 5
+betas <- "c(.5, -1, 1, -.5)"
+
+## loopvars 6
+alpha <- 0
+
+## loopvars 7
+sp.range <-  sqrt(8)     ## kappa=sqrt(8)/sp.range, so sp.range=sqrt(8) -> kappa=1 -> log(kappa)=0 (for R^2 domain)
+
+## loopvars 8
+sp.var <- 0.5            ## sp.var = 1/(4*pi*kappa^2*tau^2) (for R^2 domain)
+
+## loopvars 9
+sp.alpha <- 2.0          ## matern smoothness = sp.alpha - 1 (for R^2 domain)
+
+## loopvars 10
+nug.var <- .5 ^ 2        ## nugget variance
+
+## loopvars 11
+t.rho <-  0.8            ## annual temporal auto-corr
+
+## loopvars 12
+mesh_s_max_edge <- c("c(0.2,5)",
+                     "c(0.3,5)")
+
+## loopvars 13
+n.clust <-  50                   ## clusters PER TIME slice
+
+## loopvars 14
+m.clust <- 35                    ## mean number of obs per cluster (poisson)
+
+## loopvars 15
+sample.strat <- 'random'         ## random or by population for now. ## TODO cluser design
+
+## loopvars 16
+cores <- 5
+
+## loopvars 17
+ndraws <- 250
+
+## loopvars 18
+alphaj.pri <- "c(0, 3)" ## normal mean and sd
+
+## loopvars 19
+nug.pri <- "c(1, 1e-5)" ## gamma for nug preciion with shape and inv-scale
+
+## loopvars 20
+inla.int.strat <- 'eb' ## can be 'eb', 'ccd', or 'grid'
+
+## loopvars 21
+inla.approx <- 'simplified.laplace' ## can be 'gaussian', 'simplified.laplace' (default) or 'laplace'
+
+## loopvars 22
+Nsim <- 5 ## number of times to repeat simulation
+
+## loopvars 23
+
+## loopvars 24
+
+## loopvars 25
+
+loopvars <- expand.grid(reg, ## 1
                         year_list,
                         cov_names,
                         cov_measures,
-                        betas,
+                        betas, ## 5
                         alpha,
                         sp.range,
                         sp.var,
                         sp.alpha,
-                        nug.var,
+                        nug.var, ## 10
                         t.rho,
                         mesh_s_max_edge,
                         n.clust,
                         m.clust,
-                        sample.strat,
+                        sample.strat, ## 15
                         cores,
-                        ndraws)
+                        ndraws,
+                        alphaj.pri,
+                        nug.pri,
+                        inla.int.strat, ## 20
+                        inla.approx, 
+                        Nsim)
 
 loopvars$run_date <- NA ## keep track of run_dates to later compare runs
 
 ## prepare a set of run_dates so we can write the complete loopvars to each run_date dir
+## TODO for long loopvars this is stupidly slow... manually create the rundate list
 for(ii in 1:nrow(loopvars)){
   loopvars$run_date[ii] <- make_time_stamp(TRUE)
   Sys.sleep(1.1)
